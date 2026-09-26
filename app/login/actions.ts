@@ -47,7 +47,7 @@ export async function passwordLogin(_: LoginState, form: FormData): Promise<Logi
 
 export async function sendOtp(_: LoginState, form: FormData): Promise<LoginState> {
   const email = String(form.get("email") || "").trim().toLowerCase();
-  const code = String(form.get("code") || "").trim();
+  const code = String(form.get("code") || "").replace(/\s/g, "");
   const supabase = await createClient();
 
   if (code) {
@@ -62,7 +62,7 @@ export async function sendOtp(_: LoginState, form: FormData): Promise<LoginState
   if (error && !/not found|signups not allowed/i.test(error.message)) {
     return { error: "Could not send the code right now. Please try again in a minute." };
   }
-  return { otpSentTo: email, info: `If ${email} is registered, a 6-digit code has been sent to it.` };
+  return { otpSentTo: email, info: `If ${email} is registered, a sign-in code has been sent to it.` };
 }
 
 export async function signOut() {

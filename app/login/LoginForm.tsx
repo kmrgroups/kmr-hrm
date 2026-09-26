@@ -68,8 +68,8 @@ export function LoginForm({ next }: { next: string }) {
             <input name="email" type="email" autoComplete="username" required value={otpState.otpSentTo ?? email} onChange={(e) => setEmail(e.target.value)} readOnly={!!otpState.otpSentTo} />
           </label>
           {otpState.otpSentTo && (
-            <label className="field">6-digit code
-              <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus />
+            <label className="field">Code from the email
+              <input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6,10}" maxLength={10} required autoFocus />
             </label>
           )}
           {otpState.info && <div className="alert info">{otpState.info}</div>}

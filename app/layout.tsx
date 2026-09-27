@@ -5,6 +5,8 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { p } from "@/lib/base-path";
 import { logoUrl } from "@/lib/tenant";
 import { PoweredBy } from "@/components/PoweredBy";
+import { NavProgress } from "@/components/NavProgress";
+import { Suspense } from "react";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenant().catch(() => null);
@@ -43,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body style={style}>
+        <Suspense fallback={null}><NavProgress /></Suspense>
         {children}
         <PoweredBy />
         <ServiceWorker />

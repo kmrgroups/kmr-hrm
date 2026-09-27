@@ -285,6 +285,10 @@ input.invalid, select.invalid { border-color: var(--danger); background: #fffafa
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes loadbar { from { background-position: -50% 0; } to { background-position: 150% 0; } }
 @media (prefers-reduced-motion: reduce) { .pageloading .bar, .pageloading .spinner { animation: none; } }
+/* Top progress bar shown from the moment a link is clicked (components/NavProgress.tsx) */
+.navprogress { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 100; pointer-events: none; opacity: 0; transition: opacity .2s; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 50% 100%; background-repeat: no-repeat; }
+.navprogress.on { opacity: 1; animation: loadbar 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .navprogress.on { animation: none; background: var(--accent); } }
 
 /* Password field with show / hide button */
 .pwfield { position: relative; display: block; }

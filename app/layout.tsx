@@ -3,6 +3,7 @@ import "./globals.css";
 import { getTenant } from "@/lib/tenant";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { p } from "@/lib/base-path";
+import { PoweredBy } from "@/components/PoweredBy";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenant().catch(() => null);
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body style={style}>
         {children}
+        <PoweredBy />
         <ServiceWorker />
       </body>
     </html>

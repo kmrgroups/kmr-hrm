@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
 import { fullName, fmtDateTime, Empty, one } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { istToday } from "@/lib/attendance/time";
 
 export const metadata = { title: "Dashboard" };
 
@@ -23,6 +24,17 @@ export default async function Dashboard() {
     count(supabase.from("notifications").select("id", { count: "exact", head: true }).eq("status", "sent").gte("created_at", weekAgo)),
     count(supabase.from("notifications").select("id", { count: "exact", head: true }).eq("status", "failed").gte("created_at", weekAgo)),
   ]);
+
+  const today = istToday();
+  const dayCount = (statuses: string[]) => count(supabase.from("attendance_days").select("employee_id", { count: "exact", head: true }).eq("work_date", today).in("status", statuses));
+  const [presentToday, leaveToday, missedToday, pendingLeave, pendingFix] = await Promise.all([
+    dayCount(["present", "half_day", "missed_punch"]),
+    dayCount(["leave", "half_leave"]),
+    dayCount(["missed_punch"]),
+    count(supabase.from("leave_requests").select("id", { count: "exact", head: true }).eq("status", "pending")),
+    count(supabase.from("regularisation_requests").select("id", { count: "exact", head: true }).eq("status", "pending")),
+  ]);
+  const notIn = Math.max(0, active - presentToday - leaveToday);
 
   const [{ data: toReview }, { data: byDept }, { data: activity }] = await Promise.all([
     supabase.from("employees").select("id,first_name,last_name,updated_at,designation:designations(name)").eq("status", "submitted").order("updated_at").limit(8),
@@ -54,6 +66,13 @@ export default async function Dashboard() {
         <a className="card stat" href={p("/app/onboarding")}><div className="label">Onboarding in progress</div><div className="value">{inProgress}</div><div className="hint">Filling the form</div></a>
         <a className="card stat" href={p("/app/employees?status=submitted")}><div className="label">Awaiting HR review</div><div className="value" style={{ color: review ? "var(--warn)" : undefined }}>{review}</div><div className="hint">Submitted by new joiners</div></a>
         <a className="card stat" href={p("/app/notifications")}><div className="label">Messages sent (7 days)</div><div className="value">{sent}</div><div className="hint">{failed ? `${failed} failed` : "Email + WhatsApp"}</div></a>
+      </div>
+
+      <div className="grid four" style={{ marginTop: 16 }}>
+        <a className="card stat" href={p("/app/attendance?show=present")}><div className="label">In today</div><div className="value" style={{ color: "var(--ok)" }}>{presentToday}</div><div className="hint">{missedToday ? `${missedToday} still inside / missed punch` : "Punched in"}</div></a>
+        <a className="card stat" href={p("/app/attendance?show=none")}><div className="label">Not in yet</div><div className="value">{notIn}</div><div className="hint">No punch today</div></a>
+        <a className="card stat" href={p("/app/attendance?show=leave")}><div className="label">On leave today</div><div className="value">{leaveToday}</div><div className="hint">Approved leave</div></a>
+        <a className="card stat" href={p("/app/approvals")}><div className="label">Waiting for approval</div><div className="value" style={{ color: pendingLeave + pendingFix ? "var(--warn)" : undefined }}>{pendingLeave + pendingFix}</div><div className="hint">{pendingLeave} leave · {pendingFix} correction{pendingFix === 1 ? "" : "s"}</div></a>
       </div>
 
       <div className="grid two" style={{ marginTop: 16 }}>

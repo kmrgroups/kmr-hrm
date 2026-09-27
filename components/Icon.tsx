@@ -19,6 +19,9 @@ const PATHS = {
   send: "M22 2 11 13M22 2l-7 20-4-9-9-4z",
   camera: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8",
   upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",
+  clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2",
+  calendar: "M3 5h18v16H3zM16 3v4M8 3v4M3 10h18M8 14h2M14 14h2M8 18h2",
+  checklist: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
 } as const;
 
 export type IconName = keyof typeof PATHS;

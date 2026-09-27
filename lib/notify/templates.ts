@@ -16,7 +16,11 @@ export type NotificationEvent =
   | "onboarding_sent_back"
   | "onboarding_approved"
   | "user_invited"
-  | "id_card_issued";
+  | "id_card_issued"
+  | "leave_applied"
+  | "leave_decided"
+  | "regularisation_applied"
+  | "regularisation_decided";
 
 export interface MessageTemplate {
   subject: string;
@@ -34,7 +38,14 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   onboarding_approved: "Welcome + login details after approval",
   user_invited: "Staff user account created",
   id_card_issued: "ID card issued",
+  leave_applied: "Leave request (to approver)",
+  leave_decided: "Leave approved / rejected (to employee)",
+  regularisation_applied: "Attendance correction request (to approver)",
+  regularisation_decided: "Attendance correction approved / rejected (to employee)",
 };
+
+/** Events sent by email only until their WhatsApp templates are approved by Meta */
+export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -184,5 +195,82 @@ Human Resources, {{company}}`,
 [[My ID card|{{link}}]]`,
     wa_template: "hrm_id_card_issued",
     wa_params: ["name", "company", "employee_code", "link"],
+  },
+
+  leave_applied: {
+    subject: "Leave request from {{employee}} — {{leave_type}}, {{dates}}",
+    email: `Dear {{name}},
+
+{{employee}} ({{employee_code}}) has applied for {{leave_type}}:
+
+Dates: {{dates}} ({{days}} day(s))
+Reason: {{reason}}
+Balance before this request: {{balance}}
+
+[[Review request|{{link}}]]
+
+Regards,
+{{company}} HR portal`,
+    whatsapp: `{{employee}} has applied for {{leave_type}} on {{dates}} ({{days}} day(s)). Reason: {{reason}}
+
+[[Review|{{link}}]]`,
+    wa_template: "hrm_leave_applied",
+    wa_params: ["employee", "leave_type", "dates", "days", "reason", "link"],
+  },
+
+  leave_decided: {
+    subject: "Your {{leave_type}} for {{dates}} was {{decision}}",
+    email: `Dear {{name}},
+
+Your {{leave_type}} request for {{dates}} ({{days}} day(s)) was {{decision}} by {{approver}}.
+{{comment}}
+
+[[View my leave|{{link}}]]
+
+Regards,
+Human Resources, {{company}}`,
+    whatsapp: `Dear {{name}}, your {{leave_type}} for {{dates}} was {{decision}} by {{approver}}. {{comment}}
+
+[[My leave|{{link}}]]`,
+    wa_template: "hrm_leave_decided",
+    wa_params: ["name", "leave_type", "dates", "decision", "approver", "comment", "link"],
+  },
+
+  regularisation_applied: {
+    subject: "Attendance correction from {{employee}} for {{date}}",
+    email: `Dear {{name}},
+
+{{employee}} ({{employee_code}}) has asked to correct attendance for {{date}}:
+
+In: {{in_time}}   Out: {{out_time}}
+Reason: {{reason}}
+
+[[Review request|{{link}}]]
+
+Regards,
+{{company}} HR portal`,
+    whatsapp: `{{employee}} asked to correct attendance for {{date}} (in {{in_time}}, out {{out_time}}). Reason: {{reason}}
+
+[[Review|{{link}}]]`,
+    wa_template: "hrm_regularisation_applied",
+    wa_params: ["employee", "date", "in_time", "out_time", "reason", "link"],
+  },
+
+  regularisation_decided: {
+    subject: "Attendance correction for {{date}} was {{decision}}",
+    email: `Dear {{name}},
+
+Your attendance correction for {{date}} was {{decision}} by {{approver}}.
+{{comment}}
+
+[[View my attendance|{{link}}]]
+
+Regards,
+Human Resources, {{company}}`,
+    whatsapp: `Dear {{name}}, your attendance correction for {{date}} was {{decision}} by {{approver}}. {{comment}}
+
+[[My attendance|{{link}}]]`,
+    wa_template: "hrm_regularisation_decided",
+    wa_params: ["name", "date", "decision", "approver", "comment", "link"],
   },
 };

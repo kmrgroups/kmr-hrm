@@ -6,9 +6,17 @@ import { hashToken, randomToken } from "@/lib/tokens";
 import { notify } from "@/lib/notify";
 import { fullName, fmtDate } from "@/components/ui";
 import type { Tenant } from "@/lib/types";
+import { recomputeAttendance } from "@/lib/attendance/service";
+import { addDays, istToday } from "@/lib/attendance/time";
+import { leaveYearOf } from "@/lib/leave/rules";
+import { applyCredits } from "@/lib/leave/service";
 
-// Daily job (vercel.json): reminds new joiners who have not finished onboarding
-// (after 1, 3 and 5 days) and marks expired links.
+export const maxDuration = 60;
+
+// Daily job (vercel.json, 09:00 India time):
+//  • reminds new joiners who have not finished onboarding (after 1, 3 and 5 days) and marks expired links
+//  • finalises attendance for the last two days (marks absentees, picks up late device uploads)
+//  • adds leave credits that have fallen due (yearly at the start of the leave year, monthly accruals)
 export async function GET(req: Request) {
   if (!env.cronSecret || req.headers.get("authorization") !== `Bearer ${env.cronSecret}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -55,5 +63,19 @@ export async function GET(req: Request) {
     });
     sent++;
   }
-  return NextResponse.json({ expired: expired?.length ?? 0, reminders: sent });
+  const attendance: Record<string, unknown> = {};
+  const { data: allTenants } = await db.from("tenants").select("id,slug,settings").eq("active", true);
+  const today = istToday();
+  for (const t of allTenants ?? []) {
+    try {
+      const days = await recomputeAttendance(t.id, "all", addDays(today, -2), today, { db });
+      const sm = Math.min(12, Math.max(1, (t.settings as Tenant["settings"])?.leave_year_start_month ?? 1));
+      const credits = await applyCredits(t.id, leaveYearOf(today, sm), today);
+      attendance[t.slug] = { days, credits };
+    } catch (e) {
+      console.error(`[cron] attendance for ${t.slug}`, e);
+      attendance[t.slug] = { error: (e as Error).message };
+    }
+  }
+  return NextResponse.json({ expired: expired?.length ?? 0, reminders: sent, attendance });
 }

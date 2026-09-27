@@ -6,6 +6,7 @@ import { signOut } from "@/app/login/actions";
 import { Icon, type IconName } from "./Icon";
 import { Flash } from "./Flash";
 import { readFlash } from "@/lib/flash";
+import { p } from "@/lib/base-path";
 
 interface NavItem { href: string; label: string; icon: IconName; show: boolean }
 
@@ -18,6 +19,9 @@ export async function AppShell({ session, active, children }: { session: Session
   const main: NavItem[] = [
     { href: "/app", label: "Dashboard", icon: "home", show: staff },
     { href: "/app/employees", label: "Employees", icon: "users", show: staff },
+    { href: "/app/attendance", label: "Attendance", icon: "clock", show: staff },
+    { href: "/app/leave", label: "Leave", icon: "calendar", show: hr || hasRole(user, ["payroll"]) },
+    { href: "/app/approvals", label: "Approvals", icon: "checklist", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/onboarding", label: "Onboarding", icon: "inbox", show: hr },
     { href: "/app/id-cards", label: "ID cards", icon: "card", show: hr },
     { href: "/app/notifications", label: "Messages sent", icon: "bell", show: hr },
@@ -25,12 +29,16 @@ export async function AppShell({ session, active, children }: { session: Session
   const settings: NavItem[] = [
     { href: "/app/settings", label: "Company & branding", icon: "building", show: admin },
     { href: "/app/settings/masters", label: "Plants & departments", icon: "layers", show: hr },
+    { href: "/app/settings/attendance", label: "Attendance setup", icon: "clock", show: hr },
+    { href: "/app/settings/leave", label: "Leave policy", icon: "calendar", show: hr },
     { href: "/app/settings/users", label: "Users & roles", icon: "shield", show: admin },
     { href: "/app/settings/templates", label: "Message templates", icon: "mail", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/audit", label: "Audit trail", icon: "list", show: hasRole(user, ["hr_manager"]) },
   ];
   const personal: NavItem[] = [
     { href: "/me", label: "My portal", icon: "user", show: !!user.employee_id },
+    { href: "/me/attendance", label: "My attendance", icon: "clock", show: !!user.employee_id },
+    { href: "/me/leave", label: "My leave", icon: "calendar", show: !!user.employee_id },
     { href: "/account", label: "My account", icon: "key", show: true },
   ];
 
@@ -38,7 +46,7 @@ export async function AppShell({ session, active, children }: { session: Session
   const logo = logoUrl(tenant);
   const render = (items: NavItem[]) =>
     items.filter((i) => i.show).map((i) => (
-      <a key={i.href} href={i.href} className={`nav${isActive(i.href) ? " active" : ""}`}>
+      <a key={i.href} href={p(i.href)} className={`nav${isActive(i.href) ? " active" : ""}`}>
         <Icon name={i.icon} /> {i.label}
       </a>
     ));

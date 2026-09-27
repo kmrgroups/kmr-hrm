@@ -14,6 +14,7 @@ import { StatusBadge, Avatar, fullName, fmtDate, fmtDateTime, one } from "@/comp
 import { Icon } from "@/components/Icon";
 import { DOCUMENT_TYPES, ONBOARDING_SECTIONS, type EmployeeStatus, type OnboardingProfile } from "@/lib/types";
 import { approve, resendLink, sendBack, setActive, reissueCard, updateJobDetails, setDocumentStatus } from "../actions";
+import { saveEmployeeAttendance } from "../../attendance/actions";
 
 export const metadata = { title: "Employee" };
 
@@ -49,6 +50,7 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
     supabase.from("audit_log").select("id,action,created_at,actor_id,new_data").eq("entity_id", id).like("action", "%.%").order("created_at", { ascending: false }).limit(20),
     hr ? loadMasters() : Promise.resolve(null),
   ]);
+  const { data: shiftList } = hr ? await supabase.from("shifts").select("id,code,name,start_time,end_time").eq("active", true).order("start_time") : { data: null };
 
   const paths = [emp.photo_path, ...(docs ?? []).map((d) => d.file_path)].filter(Boolean) as string[];
   const urls = await signedDocUrls(paths, 900);
@@ -225,6 +227,33 @@ export default async function EmployeePage({ params }: { params: Promise<{ id: s
             </div>
           ) : <p className="muted">No documents uploaded yet.</p>}
           <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>Links expire after 15 minutes. Document views are private to HR.</p>
+        </div>
+      )}
+
+      {(emp.status === "active" || emp.status === "inactive") && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <h2>
+            <span>Attendance</span>
+            <a className="btn secondary small" href={p(`/app/attendance/employee/${id}`)}>View attendance</a>
+          </h2>
+          {hr && shiftList ? (
+            <ActionForm action={saveEmployeeAttendance} submitLabel="Save attendance settings" className="formgrid" hidden={{ id }}>
+              <label className="field">Device ID<input name="attendance_id" defaultValue={emp.attendance_id ?? ""} placeholder={emp.employee_code ?? "e.g. 101"} maxLength={30} /><span className="help">User / enrol number on the biometric device. Empty = employee code.</span></label>
+              <label className="field">Shift
+                <select name="shift_id" defaultValue={emp.shift_id ?? ""}>
+                  <option value="">Detect from punches (rotating shifts)</option>
+                  {shiftList.map((sh) => <option key={sh.id} value={sh.id}>{sh.code} — {sh.name} ({sh.start_time.slice(0, 5)}–{sh.end_time.slice(0, 5)})</option>)}
+                </select>
+              </label>
+              <div className="field full">Weekly off
+                <div className="row" style={{ fontWeight: 400 }}>
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => (
+                    <label key={d} className="check" style={{ alignItems: "center" }}><input type="checkbox" name="weekly_offs" value={i} defaultChecked={(emp.weekly_offs ?? [0]).includes(i)} /> {d}</label>
+                  ))}
+                </div>
+              </div>
+            </ActionForm>
+          ) : <p className="muted">Device ID {emp.attendance_id ?? emp.employee_code ?? "not set"}.</p>}
         </div>
       )}
 

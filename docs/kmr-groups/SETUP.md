@@ -69,3 +69,25 @@ Sign in at `https://www.kmr-groups.com/it/hrm/login` with the printed temporary 
 Leave `NEXT_PUBLIC_BASE_PATH` and `APP_PUBLIC_URL` empty, add `hrm.kmr-groups.com` under the HRM
 project's Domains in Vercel, add a DNS `CNAME hrm → cname.vercel-dns.com`, and create the company
 with `--domain hrm.kmr-groups.com`.
+
+## Phase 2 — Attendance + Leave
+
+1. Supabase → SQL editor → run `supabase/migrations/0002_attendance_leave.sql` once.
+2. Upload the new code to GitHub; Vercel redeploys by itself.
+3. The daily job (`vercel.json`) already points at `/it/hrm/api/cron/reminders`; it now also finalises
+   attendance and adds leave credits every morning at 09:00 India time.
+
+### Biometric devices
+
+- **eSSL / ZKTeco with a Cloud Server (ADMS) setting**: register the device's serial number under
+  Attendance setup → Connect a device, then on the device set server `www.kmr-groups.com`, port `443`,
+  HTTPS on, server path `/it/hrm`. The KMR site already forwards everything under `/it/hrm`, so no change is
+  needed there. Older devices that only speak plain HTTP or cannot set a path should use the API route below.
+- **Any other device or a bridge program** (e.g. a small script next to eTimeTrackLite): create an API-key
+  device and POST punches to `https://www.kmr-groups.com/it/hrm/api/attendance/punches`.
+- **No network link**: export the attendance log from the device software and import it under
+  Attendance → Import punches. Re-importing the same file is safe.
+
+Leave and correction messages go by **email** (to the reporting manager, or the HR alert email when the
+employee has no manager with a login). WhatsApp can be switched on for them once their templates are
+approved by Meta.

@@ -43,6 +43,9 @@ export interface TenantSettings {
   id_card_validity_years?: number;
   id_card_signatory?: string;
   onboarding_link_days?: number;
+  leave_year_start_month?: number;   // 1 = Jan–Dec (default), 4 = Apr–Mar
+  ot_min_minutes?: number;           // overtime below this is ignored (default 30)
+  employee_can_regularise_days?: number; // how far back employees may ask for corrections (default 30)
 }
 
 export interface AppUser {

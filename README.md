@@ -19,8 +19,27 @@ each customer's own domain (`hr.customer.com`) with their logo and colours.
 | Compliance | Append-only audit trail of every change and action; documents in private storage with 15-minute links; Aadhaar stored as last 4 digits only |
 | Devices | Responsive on phone, tablet, laptop, desktop; installable as an app (PWA) |
 
-Attendance with biometric devices, leave, payroll, recruitment and the QMS modules follow
-in Phases 2–5 (see the product spec).
+**Phase 2 — Attendance + Leave:**
+
+| Area | What works |
+| --- | --- |
+| Punches | eSSL / ZKTeco devices push directly (ADMS); any other device or bridge via an API key; CSV / text export import from eTimeTrackLite, ZKTeco, Matrix, Realtime or a spreadsheet. Duplicates ignored; unknown device IDs kept and linked once HR sets the employee's device ID |
+| Shifts | Fixed shifts, or automatic detection for rotating A / B / C shifts; night shifts crossing midnight; grace, break, half-day and full-day hours per shift |
+| Daily attendance | Present, half day, absent, missed punch, weekly off, holiday, leave; late / early minutes; overtime. Recalculated when punches, leave or corrections arrive, and every morning |
+| Screens | Daily muster, monthly register (CSV for payroll), each employee's month with every punch, HR manual punches, dashboard counts |
+| Corrections | Employees ask for a correction (forgot to punch, device down); the manager or HR approves; the day is recalculated |
+| Leave | Leave types with yearly or monthly credit, pro-rating for joiners, carry-forward limits, half days, notice periods, sandwich rule, loss of pay. Apply, approve, reject, cancel with credit back; HR records leave for people without logins; opening balances by CSV; year-end close |
+| Balances | Kept as a ledger, so every balance can be explained line by line |
+
+Payroll, recruitment and the QMS modules follow in Phases 3–5 (see the product spec).
+
+### Upgrading an existing Phase 1 installation
+
+1. Supabase → SQL editor → run `supabase/migrations/0002_attendance_leave.sql` once. Existing companies get
+   default shifts (G, A, B, C) and leave types (CL, SL, EL, CO, LOP) — adjust them in the app.
+2. Redeploy. The daily job now also finalises attendance and adds leave credits.
+3. In the app: **Attendance setup** (shifts, holidays, devices), **Leave policy** (quotas, leave year), then on
+   each employee set the **Device ID**, shift and weekly off. Import opening leave balances on the **Leave** page.
 
 ---
 
@@ -104,7 +123,9 @@ npm run typecheck
 npm test                      # unit tests: ID validation, messages, tokens, ID card PDF
 ```
 
-`supabase/tests/rls_test.sql` checks company isolation and role access on a plain Postgres.
+`supabase/tests/rls_test.sql` and `rls_test_phase2.sql` check company isolation and role access on a plain Postgres.
+`tests/integration/` runs the attendance and leave services and the device endpoints against Postgres + PostgREST
+(`npx vitest run --config vitest.integration.config.ts`, see its README).
 `tests/e2e/` holds the full browser walkthrough (HR on desktop, new joiner on a phone,
 passkey and email-code sign-in, QR verification, deactivation) — it runs against a local
 Supabase Auth + PostgREST stack; see `tests/e2e/reset.sh` for the setup.

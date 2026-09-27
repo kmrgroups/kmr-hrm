@@ -19,6 +19,7 @@
   --radius: 10px;
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
   --font: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --footer-h: 40px;
   color-scheme: light;
 }
 
@@ -44,7 +45,7 @@ small, .muted { color: var(--muted); }
 hr { border: 0; border-top: 1px solid var(--border); margin: 1.25rem 0; }
 
 /* ---------- App shell ---------- */
-.shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+.shell { display: grid; grid-template-columns: 248px 1fr; min-height: calc(100vh - var(--footer-h)); }
 .sidebar {
   background: var(--brand);
   color: #fff;
@@ -185,7 +186,7 @@ input.invalid, select.invalid { border-color: var(--danger); background: #fffafa
 .tabs a:hover { text-decoration: none; color: var(--text); }
 
 /* ---------- Auth / public pages ---------- */
-.authwrap { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; background: linear-gradient(160deg, var(--brand) 0%, color-mix(in srgb, var(--brand) 70%, #000) 100%); }
+.authwrap { min-height: calc(100vh - var(--footer-h)); display: grid; place-items: center; padding: 24px 16px; background: linear-gradient(160deg, var(--brand) 0%, color-mix(in srgb, var(--brand) 70%, #000) 100%); }
 .authcard { width: 100%; max-width: 420px; background: #fff; border-radius: 14px; padding: 28px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
 .authcard .logo { display: flex; justify-content: center; margin-bottom: 14px; }
 .authcard .logo img { max-height: 48px; max-width: 220px; }
@@ -266,3 +267,13 @@ input.invalid, select.invalid { border-color: var(--danger); background: #fffafa
 .verify { max-width: 420px; margin: 0 auto; }
 .verify .status { font-size: 1.1rem; font-weight: 700; padding: 10px; border-radius: 8px; text-align: center; }
 @media print { .sidebar, .topbar, .noprint { display: none !important; } .shell { display: block; } body { background: #fff; } }
+
+/* "Powered by" footer shown on every screen */
+.powered-by {
+  height: var(--footer-h); display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--muted); background: var(--surface); border-top: 1px solid var(--border);
+  padding: 0 16px calc(env(safe-area-inset-bottom, 0px)); text-align: center;
+}
+.powered-by a { color: inherit; text-decoration: none; font-weight: 600; }
+.powered-by a:hover { color: var(--brand); text-decoration: underline; }
+@media print { .powered-by { display: none; } }

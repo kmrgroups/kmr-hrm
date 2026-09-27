@@ -3,6 +3,7 @@ import { p } from "@/lib/base-path";
 import { useActionState, useEffect, useState } from "react";
 import { startAuthentication, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { passwordLogin, sendOtp, type LoginState } from "./actions";
+import { PasswordInput } from "@/components/PasswordInput";
 
 type Mode = "password" | "otp" | "passkey";
 
@@ -53,11 +54,11 @@ export function LoginForm({ next }: { next: string }) {
       {mode === "password" && (
         <form action={pwAction} className="stack">
           <input type="hidden" name="next" value={next} />
-          <label className="field">Email<input name="email" type="email" autoComplete="username webauthn" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-          <label className="field">Password<input name="password" type="password" autoComplete="current-password" required /></label>
+          <label className="field">Email<input name="email" type="email" autoComplete="username webauthn" placeholder="name@company.com" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <label className="field">Password<PasswordInput name="password" autoComplete="current-password" placeholder="Your password" required /></label>
           {pwState.error && <div className="alert error">{pwState.error}</div>}
           <button className="btn block" disabled={pwPending}>{pwPending ? "Signing in…" : "Sign in"}</button>
-          <button type="button" className="btn ghost small" onClick={() => setMode("otp")}>Forgot password? Sign in with an email code</button>
+          <button type="button" className="linkbtn" onClick={() => setMode("otp")}>Forgot password? Sign in with an email code</button>
         </form>
       )}
 
@@ -73,6 +74,7 @@ export function LoginForm({ next }: { next: string }) {
             </label>
           )}
           {otpState.info && <div className="alert info">{otpState.info}</div>}
+          {otpState.otpSentTo && <button type="button" className="linkbtn" onClick={() => window.location.reload()}>Use a different email</button>}
           {otpState.error && <div className="alert error">{otpState.error}</div>}
           <button className="btn block" disabled={otpPending}>
             {otpPending ? "Please wait…" : otpState.otpSentTo ? "Verify and sign in" : "Send code"}

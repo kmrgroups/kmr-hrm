@@ -20,7 +20,8 @@ export type NotificationEvent =
   | "leave_applied"
   | "leave_decided"
   | "regularisation_applied"
-  | "regularisation_decided";
+  | "regularisation_decided"
+  | "login_code";
 
 export interface MessageTemplate {
   subject: string;
@@ -42,10 +43,11 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   leave_decided: "Leave approved / rejected (to employee)",
   regularisation_applied: "Attendance correction request (to approver)",
   regularisation_decided: "Attendance correction approved / rejected (to employee)",
+  login_code: "Sign-in code",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
-export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided"];
+export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -272,5 +274,23 @@ Human Resources, {{company}}`,
 [[My attendance|{{link}}]]`,
     wa_template: "hrm_regularisation_decided",
     wa_params: ["name", "date", "decision", "approver", "comment", "link"],
+  },
+
+  login_code: {
+    subject: "{{otp}} is your {{company}} sign-in code",
+    email: `Dear {{name}},
+
+Your code to sign in to the {{company}} HR portal is:
+
+{{otp}}
+
+Enter it on the sign-in screen. It works once and expires in {{minutes}} minutes.
+
+If you did not ask for this code, you can ignore this email — your account stays safe.
+
+Human Resources, {{company}}`,
+    whatsapp: `{{otp}} is your {{company}} HR portal sign-in code. It expires in {{minutes}} minutes. Do not share it with anyone.`,
+    wa_template: "hrm_login_code",
+    wa_params: ["otp", "company", "minutes"],
   },
 };

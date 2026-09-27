@@ -1,4 +1,5 @@
 "use client";
+import { PasswordInput } from "@/components/PasswordInput";
 import { p } from "@/lib/base-path";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -9,8 +10,8 @@ export function PasswordForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(changePassword, {});
   return (
     <form action={action} className="stack">
-      <label className="field">New password<input name="password" type="password" autoComplete="new-password" minLength={8} required /></label>
-      <label className="field">Confirm new password<input name="confirm" type="password" autoComplete="new-password" minLength={8} required /></label>
+      <label className="field">New password<PasswordInput name="password" autoComplete="new-password" minLength={8} required /></label>
+      <label className="field">Confirm new password<PasswordInput name="confirm" autoComplete="new-password" minLength={8} required /></label>
       {state.error && <div className="alert error">{state.error}</div>}
       {state.ok && <div className="alert ok">{state.ok}</div>}
       <div><button className="btn" disabled={pending}>{pending ? "Saving…" : "Update password"}</button></div>

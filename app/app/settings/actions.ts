@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { assertRole, ADMIN_ROLES, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -72,6 +72,7 @@ export async function saveCompany(_: ActionState, form: FormData): Promise<Actio
     const { error } = await supabase.from("tenants").update(update).eq("id", tenant.id);
     if (error) return { error: error.message };
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "company.updated", entity: "tenants", entityId: tenant.id });
+    revalidateTag("tenant");
     revalidatePath("/", "layout");
     return { ok: "Company settings saved." };
   } catch (e) {

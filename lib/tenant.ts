@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
@@ -8,21 +9,29 @@ import type { Tenant } from "@/lib/types";
 import { slugFromHost } from "@/lib/tenant-host";
 import { BASE_PATH } from "@/lib/base-path";
 
-export const getTenant = cache(async (): Promise<Tenant | null> => {
-  const h = await headers();
-  const host = (h.get("x-forwarded-host") || h.get("host") || "").toLowerCase().split(":")[0];
-  const db = createAdminClient();
-  const cols = "id,slug,name,legal_name,logo_path,primary_color,accent_color,address,phone,email,website,emp_code_prefix,settings";
+const COLS = "id,slug,name,legal_name,logo_path,primary_color,accent_color,address,phone,email,website,emp_code_prefix,settings";
 
+/**
+ * Company for a web address. Cached for 5 minutes across requests (it is read on every page), and
+ * cleared at once when company settings are saved (revalidateTag("tenant")).
+ */
+const lookupTenant = unstable_cache(async (host: string): Promise<Tenant | null> => {
+  const db = createAdminClient();
   const { data: domain } = await db.from("tenant_domains").select("tenant_id").eq("domain", host).maybeSingle();
   if (domain) {
-    const { data } = await db.from("tenants").select(cols).eq("id", domain.tenant_id).eq("active", true).maybeSingle();
+    const { data } = await db.from("tenants").select(COLS).eq("id", domain.tenant_id).eq("active", true).maybeSingle();
     if (data) return data as Tenant;
   }
   const slug = slugFromHost(host, env.rootDomain) || env.defaultTenantSlug;
   if (!slug) return null;
-  const { data } = await db.from("tenants").select(cols).eq("slug", slug).eq("active", true).maybeSingle();
+  const { data } = await db.from("tenants").select(COLS).eq("slug", slug).eq("active", true).maybeSingle();
   return (data as Tenant) ?? null;
+}, ["tenant-by-host"], { revalidate: 300, tags: ["tenant"] });
+
+export const getTenant = cache(async (): Promise<Tenant | null> => {
+  const h = await headers();
+  const host = (h.get("x-forwarded-host") || h.get("host") || "").toLowerCase().split(":")[0];
+  return lookupTenant(host);
 });
 
 export async function requireTenant(): Promise<Tenant> {

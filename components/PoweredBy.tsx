@@ -1,12 +1,12 @@
-// Footer shown on every screen. Defaults to KMR; each deployment can override it with
-// POWERED_BY_TEXT / POWERED_BY_URL (set POWERED_BY_TEXT to "off" to hide it).
+// Footer shown on every screen: "Powered By : KMR Group of Companies" with the name linking to the website.
+// Another deployment can change it with POWERED_BY_TEXT / POWERED_BY_URL (POWERED_BY_TEXT=off hides it).
 export function PoweredBy() {
-  const text = process.env.POWERED_BY_TEXT || "Powered by KMR Group of Companies";
+  const name = process.env.POWERED_BY_TEXT || "KMR Group of Companies";
   const url = process.env.POWERED_BY_URL || "https://www.kmr-groups.com";
-  if (text.toLowerCase() === "off") return null;
+  if (name.toLowerCase() === "off") return null;
   return (
     <footer className="powered-by">
-      <a href={url} target="_blank" rel="noopener">{text}</a>
+      <span>Powered By : <a href={url} target="_blank" rel="noopener">{name}</a></span>
     </footer>
   );
 }

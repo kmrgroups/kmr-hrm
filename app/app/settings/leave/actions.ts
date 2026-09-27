@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { assertRole, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -61,6 +61,7 @@ export async function saveLeaveYear(_: ActionState, form: FormData): Promise<Act
     }
     const { error } = await db.from("tenants").update({ settings: { ...tenant.settings, leave_year_start_month: m } }).eq("id", tenant.id);
     if (error) return { error: error.message };
+    revalidateTag("tenant");
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "leave.year_changed", entity: "tenants", entityId: tenant.id, data: { start_month: m } });
     revalidatePath(PATH);
     return { ok: "Leave year saved." };

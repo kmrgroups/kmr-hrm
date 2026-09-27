@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { assertRole, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -148,6 +148,7 @@ export async function saveAttendanceOptions(_: ActionState, form: FormData): Pro
     const { error } = await createAdminClient().from("tenants").update({ settings: { ...tenant.settings, ot_min_minutes: ot, employee_can_regularise_days: reg } }).eq("id", tenant.id);
     if (error) return { error: error.message };
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "attendance.options_changed", entity: "tenants", entityId: tenant.id, data: { ot, reg } });
+    revalidateTag("tenant");
     if (ot !== (tenant.settings?.ot_min_minutes ?? 30)) await recomputeAttendance(tenant.id, "all", addDays(istToday(), -31), istToday());
     revalidatePath(PATH);
     return { ok: "Options saved." };

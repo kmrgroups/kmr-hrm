@@ -122,15 +122,15 @@ export async function notify(opts: NotifyOptions): Promise<ChannelResult[]> {
     return [];
   }
 
-  const record = async (channel: "email" | "whatsapp", recipient: string, subject: string | null, body: string, r: { status: string; error?: string; providerId?: string }) => {
+  const record = async (channel: "email" | "whatsapp", recipient: string, rawSubject: string | null, body: string, r: { status: string; error?: string; providerId?: string }) => {
     await db.from("notifications").insert({
       tenant_id: tenant.id,
       event,
       channel,
       recipient,
-      subject,
+      subject: rawSubject && vars.otp ? rawSubject.split(String(vars.otp)).join("******") : rawSubject,
       // never keep passwords in the message log
-      body: vars.temp_password ? body.split(String(vars.temp_password)).join("********") : body,
+      body: [vars.temp_password, vars.otp].filter(Boolean).reduce((b: string, secret) => b.split(String(secret)).join("********"), body),
       status: r.status,
       provider_id: r.providerId ?? null,
       error: r.error ?? null,

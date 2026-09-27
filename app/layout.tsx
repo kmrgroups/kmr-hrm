@@ -3,6 +3,7 @@ import "./globals.css";
 import { getTenant } from "@/lib/tenant";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { p } from "@/lib/base-path";
+import { logoUrl } from "@/lib/tenant";
 import { PoweredBy } from "@/components/PoweredBy";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -13,7 +14,13 @@ export async function generateMetadata(): Promise<Metadata> {
     description: "Employee onboarding, attendance, payroll and HR self-service",
     manifest: p("/manifest.webmanifest"),
     appleWebApp: { capable: true, title: name, statusBarStyle: "default" },
-    icons: { icon: p("/api/pwa-icon?s=192"), apple: p("/api/pwa-icon?s=180") },
+    // The company logo from Settings is the browser-tab icon; without a logo, an icon with the company's initials.
+    icons: (() => {
+      const logo = tenant ? logoUrl(tenant) : null;
+      return logo
+        ? { icon: [{ url: logo }], shortcut: [{ url: logo }], apple: [{ url: logo }] }
+        : { icon: [{ url: p("/api/pwa-icon?s=64"), type: "image/png" }], shortcut: [{ url: p("/api/pwa-icon?s=64") }], apple: [{ url: p("/api/pwa-icon?s=180") }] };
+    })(),
     robots: { index: false, follow: false },
   };
 }

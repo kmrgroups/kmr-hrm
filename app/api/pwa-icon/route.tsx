@@ -27,6 +27,6 @@ export async function GET(req: Request) {
         {initials}
       </div>
     ),
-    { width: size, height: size, headers: { "Cache-Control": "public, max-age=86400" } },
+    { width: size, height: size, headers: { "Cache-Control": "public, max-age=86400, s-maxage=86400" } },
   );
 }

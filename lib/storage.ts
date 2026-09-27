@@ -1,8 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export const DOCS_BUCKET = "employee-docs";
-export const BRANDING_BUCKET = "branding";
+export { DOCS_BUCKET, BRANDING_BUCKET } from "@/lib/buckets";
+import { DOCS_BUCKET } from "@/lib/buckets";
 
 export const ALLOWED_UPLOAD_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",

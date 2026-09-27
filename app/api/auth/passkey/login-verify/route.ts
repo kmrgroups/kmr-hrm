@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyAuthenticationResponse, type AuthenticationResponseJSON } from "@simplewebauthn/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getTenant } from "@/lib/tenant";
+import { COMPANY_COOKIE, hostTenant, tenantById } from "@/lib/tenant";
+import { licenceFor } from "@/lib/licence";
 import { homeFor } from "@/lib/auth";
 import { b64url, relyingParty, takeChallenge } from "@/lib/passkeys";
 import type { AppUser } from "@/lib/types";
@@ -11,13 +12,12 @@ export async function POST(req: Request) {
   const fail = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
   const challenge = await takeChallenge("auth");
   if (!challenge) return fail("The request expired. Please try again.");
-  const tenant = await getTenant();
-  if (!tenant) return fail("Unknown portal.", 404);
 
   const body = (await req.json()) as { response: AuthenticationResponseJSON; next?: string };
   const admin = createAdminClient();
   const { data: pk } = await admin.from("passkeys").select("*").eq("id", body.response?.id ?? "").maybeSingle();
-  if (!pk || pk.tenant_id !== tenant.id) {
+  const own = await hostTenant();
+  if (!pk || (own && pk.tenant_id !== own.id)) {
     return fail("This Face ID / fingerprint is not registered here. Sign in with your password and turn it on from My account.");
   }
 
@@ -47,6 +47,10 @@ export async function POST(req: Request) {
     .eq("id", pk.user_id)
     .maybeSingle();
   if (!appUser?.active) return fail("This account is deactivated.", 403);
+  const tenant = await tenantById(appUser.tenant_id);
+  if (!tenant) return fail("Your company's HRM account is not active.", 403);
+  const licence = await licenceFor(tenant.id);
+  if (!licence.ok && appUser.role !== "platform_admin") return fail(`${licence.message} Please contact KMR Group of Companies.`, 403);
 
   // Turn the verified passkey into a normal Supabase session:
   // mint a one-time magic-link token server-side and redeem it immediately.
@@ -58,5 +62,7 @@ export async function POST(req: Request) {
 
   const next = body.next && body.next.startsWith("/") && !body.next.startsWith("//") ? body.next : null;
   const home = homeFor(appUser as AppUser);
-  return NextResponse.json({ redirect: appUser.must_change_password ? home : next || home });
+  const res = NextResponse.json({ redirect: appUser.must_change_password ? home : next || home });
+  res.cookies.set(COMPANY_COOKIE, tenant.slug, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax", secure: true, httpOnly: true });
+  return res;
 }

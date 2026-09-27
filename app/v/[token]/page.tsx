@@ -1,6 +1,6 @@
 import { p } from "@/lib/base-path";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getTenant, logoUrl } from "@/lib/tenant";
+import { tenantById, logoUrl } from "@/lib/tenant";
 import { getSession } from "@/lib/auth";
 import { signedDocUrl } from "@/lib/storage";
 import { fullName, fmtDate, one } from "@/components/ui";
@@ -12,7 +12,6 @@ export const dynamic = "force-dynamic";
 // security guard or visitor needs — never salary, bank, PF or address details.
 export default async function VerifyPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const tenant = await getTenant();
   const db = createAdminClient();
   const { data: emp } = /^[0-9a-f]{32}$/i.test(token)
     ? await db.from("employees")
@@ -20,7 +19,8 @@ export default async function VerifyPage({ params }: { params: Promise<{ token: 
         .eq("verify_token", token).maybeSingle()
     : { data: null };
 
-  const valid = !!emp && !!tenant && emp.tenant_id === tenant.id;
+  const tenant = emp ? await tenantById(emp.tenant_id) : null;
+  const valid = !!emp && !!tenant;
   const card = valid ? ((emp!.id_cards as { status: string; valid_until: string | null }[]) ?? []).find((c) => c.status === "active") : null;
   const expired = !!card?.valid_until && new Date(card.valid_until) < new Date();
   const ok = valid && emp!.status === "active" && !!card && !expired;

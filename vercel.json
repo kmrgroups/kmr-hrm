@@ -1,7 +1,6 @@
 {
   "regions": ["bom1"],
   "crons": [
-    { "path": "/api/cron/reminders", "schedule": "30 3 * * *" },
     { "path": "/it/hrm/api/cron/reminders", "schedule": "30 3 * * *" }
   ]
 }

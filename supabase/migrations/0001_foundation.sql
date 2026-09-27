@@ -1,3 +1,11 @@
+-- The HRM lives in its own schema "hrm" so it can share one Supabase project with other
+-- KMR products (and the KMR website) without any table-name clashes.
+create schema if not exists hrm;
+grant usage on schema hrm to anon, authenticated, service_role;
+alter default privileges in schema hrm grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema hrm grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema hrm grant execute on functions to anon, authenticated, service_role;
+
 -- =====================================================================
 -- HRM Suite — Phase 1: Foundation + Core HR
 -- Multi-tenant schema with row-level security on every tenant table.
@@ -9,7 +17,7 @@ create extension if not exists pgcrypto;
 -- ---------------------------------------------------------------------
 -- Tenants (companies) and their domains
 -- ---------------------------------------------------------------------
-create table public.tenants (
+create table hrm.tenants (
   id              uuid primary key default gen_random_uuid(),
   slug            text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]{1,40}$'),
   name            text not null,                 -- short display name
@@ -28,21 +36,21 @@ create table public.tenants (
   created_at      timestamptz not null default now()
 );
 
-create table public.tenant_domains (
+create table hrm.tenant_domains (
   domain      text primary key check (domain = lower(domain)),
-  tenant_id   uuid not null references public.tenants(id) on delete cascade,
+  tenant_id   uuid not null references hrm.tenants(id) on delete cascade,
   is_primary  boolean not null default false,
   verified    boolean not null default false,
   created_at  timestamptz not null default now()
 );
-create index on public.tenant_domains(tenant_id);
+create index on hrm.tenant_domains(tenant_id);
 
 -- ---------------------------------------------------------------------
 -- Organisation masters
 -- ---------------------------------------------------------------------
-create table public.plants (
+create table hrm.plants (
   id         uuid primary key default gen_random_uuid(),
-  tenant_id  uuid not null references public.tenants(id) on delete cascade,
+  tenant_id  uuid not null references hrm.tenants(id) on delete cascade,
   code       text not null,
   name       text not null,
   address    text,
@@ -52,9 +60,9 @@ create table public.plants (
   unique (tenant_id, code)
 );
 
-create table public.departments (
+create table hrm.departments (
   id         uuid primary key default gen_random_uuid(),
-  tenant_id  uuid not null references public.tenants(id) on delete cascade,
+  tenant_id  uuid not null references hrm.tenants(id) on delete cascade,
   name       text not null,
   code       text,
   active     boolean not null default true,
@@ -62,9 +70,9 @@ create table public.departments (
   unique (tenant_id, name)
 );
 
-create table public.designations (
+create table hrm.designations (
   id         uuid primary key default gen_random_uuid(),
-  tenant_id  uuid not null references public.tenants(id) on delete cascade,
+  tenant_id  uuid not null references hrm.tenants(id) on delete cascade,
   name       text not null,
   grade      text,
   active     boolean not null default true,
@@ -75,9 +83,9 @@ create table public.designations (
 -- ---------------------------------------------------------------------
 -- Users (one row per Supabase auth user) and roles
 -- ---------------------------------------------------------------------
-create table public.app_users (
+create table hrm.app_users (
   id                   uuid primary key references auth.users(id) on delete cascade,
-  tenant_id            uuid not null references public.tenants(id) on delete cascade,
+  tenant_id            uuid not null references hrm.tenants(id) on delete cascade,
   role                 text not null check (role in (
                          'platform_admin','company_admin','hr_manager','hr_executive',
                          'payroll','manager','interviewer','employee')),
@@ -89,14 +97,14 @@ create table public.app_users (
   active               boolean not null default true,
   created_at           timestamptz not null default now()
 );
-create index on public.app_users(tenant_id);
+create index on hrm.app_users(tenant_id);
 
 -- ---------------------------------------------------------------------
 -- Employees
 -- ---------------------------------------------------------------------
-create table public.employees (
+create table hrm.employees (
   id                      uuid primary key default gen_random_uuid(),
-  tenant_id               uuid not null references public.tenants(id) on delete cascade,
+  tenant_id               uuid not null references hrm.tenants(id) on delete cascade,
   employee_code           text,
   status                  text not null default 'invited' check (status in (
                             'invited','onboarding','submitted','sent_back','active','inactive','exited')),
@@ -104,10 +112,10 @@ create table public.employees (
   last_name               text,
   email                   text,
   mobile                  text,
-  plant_id                uuid references public.plants(id),
-  department_id           uuid references public.departments(id),
-  designation_id          uuid references public.designations(id),
-  reporting_manager_id    uuid references public.employees(id),
+  plant_id                uuid references hrm.plants(id),
+  department_id           uuid references hrm.departments(id),
+  designation_id          uuid references hrm.designations(id),
+  reporting_manager_id    uuid references hrm.employees(id),
   employment_type         text not null default 'permanent' check (employment_type in (
                             'permanent','probation','fixed_term','trainee','apprentice','contract')),
   category                text not null default 'staff' check (category in ('staff','workman','management')),
@@ -125,16 +133,16 @@ create table public.employees (
   updated_at              timestamptz not null default now(),
   unique (tenant_id, employee_code)
 );
-create index on public.employees(tenant_id, status);
+create index on hrm.employees(tenant_id, status);
 
-alter table public.app_users
-  add constraint app_users_employee_fk foreign key (employee_id) references public.employees(id) on delete set null;
+alter table hrm.app_users
+  add constraint app_users_employee_fk foreign key (employee_id) references hrm.employees(id) on delete set null;
 
 -- Statutory and bank details are kept apart so that managers who can see
 -- an employee's profile cannot see these fields.
-create table public.employee_private (
-  employee_id     uuid primary key references public.employees(id) on delete cascade,
-  tenant_id       uuid not null references public.tenants(id) on delete cascade,
+create table hrm.employee_private (
+  employee_id     uuid primary key references hrm.employees(id) on delete cascade,
+  tenant_id       uuid not null references hrm.tenants(id) on delete cascade,
   pan             text,
   aadhaar_last4   text check (aadhaar_last4 is null or aadhaar_last4 ~ '^[0-9]{4}$'),  -- full Aadhaar is never stored
   uan             text,
@@ -149,10 +157,10 @@ create table public.employee_private (
   updated_at      timestamptz not null default now()
 );
 
-create table public.onboarding_invites (
+create table hrm.onboarding_invites (
   id                  uuid primary key default gen_random_uuid(),
-  tenant_id           uuid not null references public.tenants(id) on delete cascade,
-  employee_id         uuid not null references public.employees(id) on delete cascade,
+  tenant_id           uuid not null references hrm.tenants(id) on delete cascade,
+  employee_id         uuid not null references hrm.employees(id) on delete cascade,
   token_hash          text not null unique,      -- sha256 of the link token; the raw token is only in the link
   status              text not null default 'sent' check (status in (
                         'sent','in_progress','submitted','sent_back','approved','expired','revoked')),
@@ -170,13 +178,13 @@ create table public.onboarding_invites (
   created_by          uuid references auth.users(id),
   created_at          timestamptz not null default now()
 );
-create index on public.onboarding_invites(tenant_id, status);
-create index on public.onboarding_invites(employee_id);
+create index on hrm.onboarding_invites(tenant_id, status);
+create index on hrm.onboarding_invites(employee_id);
 
-create table public.employee_documents (
+create table hrm.employee_documents (
   id           uuid primary key default gen_random_uuid(),
-  tenant_id    uuid not null references public.tenants(id) on delete cascade,
-  employee_id  uuid not null references public.employees(id) on delete cascade,
+  tenant_id    uuid not null references hrm.tenants(id) on delete cascade,
+  employee_id  uuid not null references hrm.employees(id) on delete cascade,
   doc_type     text not null,                    -- aadhaar, pan, cheque, qualification, relieving, payslip, experience, photo, selfie, other
   file_path    text not null,                    -- employee-docs/<tenant>/<employee>/<uuid>.<ext>
   file_name    text,
@@ -186,12 +194,12 @@ create table public.employee_documents (
   comment      text,
   uploaded_at  timestamptz not null default now()
 );
-create index on public.employee_documents(employee_id);
+create index on hrm.employee_documents(employee_id);
 
-create table public.id_cards (
+create table hrm.id_cards (
   id           uuid primary key default gen_random_uuid(),
-  tenant_id    uuid not null references public.tenants(id) on delete cascade,
-  employee_id  uuid not null references public.employees(id) on delete cascade,
+  tenant_id    uuid not null references hrm.tenants(id) on delete cascade,
+  employee_id  uuid not null references hrm.employees(id) on delete cascade,
   version      integer not null default 1,
   status       text not null default 'active' check (status in ('active','replaced','revoked')),
   issued_at    timestamptz not null default now(),
@@ -199,15 +207,15 @@ create table public.id_cards (
   issued_by    uuid references auth.users(id),
   reason       text                               -- new, lost, damaged, data change
 );
-create index on public.id_cards(employee_id);
+create index on hrm.id_cards(employee_id);
 
 -- ---------------------------------------------------------------------
 -- Passkeys (Face ID / fingerprint / Windows Hello login)
 -- ---------------------------------------------------------------------
-create table public.passkeys (
+create table hrm.passkeys (
   id            text primary key,                 -- base64url credential id
   user_id       uuid not null references auth.users(id) on delete cascade,
-  tenant_id     uuid not null references public.tenants(id) on delete cascade,
+  tenant_id     uuid not null references hrm.tenants(id) on delete cascade,
   public_key    text not null,                    -- base64url COSE public key
   counter       bigint not null default 0,
   transports    text[] not null default '{}',
@@ -216,14 +224,14 @@ create table public.passkeys (
   created_at    timestamptz not null default now(),
   last_used_at  timestamptz
 );
-create index on public.passkeys(user_id);
+create index on hrm.passkeys(user_id);
 
 -- ---------------------------------------------------------------------
 -- Notifications
 -- ---------------------------------------------------------------------
-create table public.notification_templates (
+create table hrm.notification_templates (
   id              uuid primary key default gen_random_uuid(),
-  tenant_id       uuid not null references public.tenants(id) on delete cascade,
+  tenant_id       uuid not null references hrm.tenants(id) on delete cascade,
   event           text not null,
   channel         text not null check (channel in ('email','whatsapp')),
   subject         text,
@@ -236,9 +244,9 @@ create table public.notification_templates (
   unique (tenant_id, event, channel)
 );
 
-create table public.notifications (
+create table hrm.notifications (
   id            uuid primary key default gen_random_uuid(),
-  tenant_id     uuid not null references public.tenants(id) on delete cascade,
+  tenant_id     uuid not null references hrm.tenants(id) on delete cascade,
   event         text not null,
   channel       text not null check (channel in ('email','whatsapp','sms')),
   recipient     text not null,
@@ -252,15 +260,15 @@ create table public.notifications (
   created_at    timestamptz not null default now(),
   sent_at       timestamptz
 );
-create index on public.notifications(tenant_id, created_at desc);
-create index on public.notifications(provider_id);
+create index on hrm.notifications(tenant_id, created_at desc);
+create index on hrm.notifications(provider_id);
 
 -- ---------------------------------------------------------------------
 -- Audit log (append-only)
 -- ---------------------------------------------------------------------
-create table public.audit_log (
+create table hrm.audit_log (
   id          bigserial primary key,
-  tenant_id   uuid references public.tenants(id) on delete cascade,
+  tenant_id   uuid references hrm.tenants(id) on delete cascade,
   actor_id    uuid,
   action      text not null,                     -- insert / update / delete / semantic e.g. onboarding.approved
   entity      text not null,
@@ -269,77 +277,77 @@ create table public.audit_log (
   new_data    jsonb,
   created_at  timestamptz not null default now()
 );
-create index on public.audit_log(tenant_id, created_at desc);
-create index on public.audit_log(entity, entity_id);
+create index on hrm.audit_log(tenant_id, created_at desc);
+create index on hrm.audit_log(entity, entity_id);
 
 -- =====================================================================
 -- Helper functions
 -- =====================================================================
 
 -- Tenant of the signed-in user (null for anonymous / service role)
-create or replace function public.current_tenant_id() returns uuid
-language sql stable security definer set search_path = public as $$
-  select tenant_id from public.app_users where id = auth.uid() and active
+create or replace function hrm.current_tenant_id() returns uuid
+language sql stable security definer set search_path = hrm, public as $$
+  select tenant_id from hrm.app_users where id = auth.uid() and active
 $$;
 
-create or replace function public.current_role_name() returns text
-language sql stable security definer set search_path = public as $$
-  select role from public.app_users where id = auth.uid() and active
+create or replace function hrm.current_role_name() returns text
+language sql stable security definer set search_path = hrm, public as $$
+  select role from hrm.app_users where id = auth.uid() and active
 $$;
 
-create or replace function public.current_employee_id() returns uuid
-language sql stable security definer set search_path = public as $$
-  select employee_id from public.app_users where id = auth.uid() and active
+create or replace function hrm.current_employee_id() returns uuid
+language sql stable security definer set search_path = hrm, public as $$
+  select employee_id from hrm.app_users where id = auth.uid() and active
 $$;
 
 -- True when the signed-in user holds any of the given roles.
 -- company_admin and platform_admin pass every HR check.
-create or replace function public.has_role(variadic roles text[]) returns boolean
-language sql stable security definer set search_path = public as $$
+create or replace function hrm.has_role(variadic roles text[]) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
   select exists (
-    select 1 from public.app_users
+    select 1 from hrm.app_users
     where id = auth.uid() and active
       and (role = any(roles) or role in ('company_admin','platform_admin'))
   )
 $$;
 
-create or replace function public.is_hr() returns boolean
-language sql stable as $$ select public.has_role('hr_manager','hr_executive') $$;
+create or replace function hrm.is_hr() returns boolean
+language sql stable as $$ select hrm.has_role('hr_manager','hr_executive') $$;
 
 -- Employees in the signed-in manager's reporting line (direct + indirect)
-create or replace function public.is_in_my_team(emp uuid) returns boolean
-language sql stable security definer set search_path = public as $$
+create or replace function hrm.is_in_my_team(emp uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
   with recursive team as (
-    select id from public.employees where reporting_manager_id = public.current_employee_id()
+    select id from hrm.employees where reporting_manager_id = hrm.current_employee_id()
     union
-    select e.id from public.employees e join team t on e.reporting_manager_id = t.id
+    select e.id from hrm.employees e join team t on e.reporting_manager_id = t.id
   )
   select exists (select 1 from team where id = emp)
 $$;
 
 -- Atomically allocate the next employee code, e.g. DEN-PL1-0042
-create or replace function public.next_employee_code(p_tenant uuid, p_plant uuid default null) returns text
-language plpgsql security definer set search_path = public as $$
+create or replace function hrm.next_employee_code(p_tenant uuid, p_plant uuid default null) returns text
+language plpgsql security definer set search_path = hrm, public as $$
 declare
   v_prefix text;
   v_seq    integer;
   v_plant  text;
 begin
-  update public.tenants set emp_code_seq = emp_code_seq + 1
+  update hrm.tenants set emp_code_seq = emp_code_seq + 1
    where id = p_tenant
    returning emp_code_prefix, emp_code_seq into v_prefix, v_seq;
   if v_seq is null then
     raise exception 'tenant % not found', p_tenant;
   end if;
   if p_plant is not null then
-    select code into v_plant from public.plants where id = p_plant and tenant_id = p_tenant;
+    select code into v_plant from hrm.plants where id = p_plant and tenant_id = p_tenant;
   end if;
   return v_prefix || coalesce('-' || v_plant, '') || '-' || lpad(v_seq::text, 4, '0');
 end $$;
 
 -- Generic audit trigger
-create or replace function public.audit_row() returns trigger
-language plpgsql security definer set search_path = public as $$
+create or replace function hrm.audit_row() returns trigger
+language plpgsql security definer set search_path = hrm, public as $$
 declare
   v_old jsonb := case when tg_op in ('UPDATE','DELETE') then to_jsonb(old) end;
   v_new jsonb := case when tg_op in ('INSERT','UPDATE') then to_jsonb(new) end;
@@ -348,7 +356,7 @@ begin
   if tg_op = 'UPDATE' and v_old = v_new then
     return new;
   end if;
-  insert into public.audit_log(tenant_id, actor_id, action, entity, entity_id, old_data, new_data)
+  insert into hrm.audit_log(tenant_id, actor_id, action, entity, entity_id, old_data, new_data)
   values (
     case when tg_table_name = 'tenants' then (v_row->>'id')::uuid else (v_row->>'tenant_id')::uuid end,
     auth.uid(),
@@ -361,13 +369,13 @@ begin
   return coalesce(new, old);
 end $$;
 
-create or replace function public.touch_updated_at() returns trigger
+create or replace function hrm.touch_updated_at() returns trigger
 language plpgsql as $$ begin new.updated_at := now(); return new; end $$;
 
-create trigger employees_touch before update on public.employees
-  for each row execute function public.touch_updated_at();
-create trigger employee_private_touch before update on public.employee_private
-  for each row execute function public.touch_updated_at();
+create trigger employees_touch before update on hrm.employees
+  for each row execute function hrm.touch_updated_at();
+create trigger employee_private_touch before update on hrm.employee_private
+  for each row execute function hrm.touch_updated_at();
 
 do $$
 declare t text;
@@ -376,22 +384,22 @@ begin
                            'employees','employee_private','onboarding_invites','employee_documents','id_cards',
                            'notification_templates']
   loop
-    execute format('create trigger %I after insert or update or delete on public.%I
-                    for each row execute function public.audit_row()', t || '_audit', t);
+    execute format('create trigger %I after insert or update or delete on hrm.%I
+                    for each row execute function hrm.audit_row()', t || '_audit', t);
   end loop;
 end $$;
 
 -- Default masters for a new tenant
-create or replace function public.seed_tenant_defaults(p_tenant uuid) returns void
-language plpgsql security definer set search_path = public as $$
+create or replace function hrm.seed_tenant_defaults(p_tenant uuid) returns void
+language plpgsql security definer set search_path = hrm, public as $$
 begin
-  insert into public.departments(tenant_id, name, code) values
+  insert into hrm.departments(tenant_id, name, code) values
     (p_tenant,'Production','PRD'),(p_tenant,'Quality','QA'),(p_tenant,'Maintenance','MNT'),
     (p_tenant,'Stores','STR'),(p_tenant,'Production Planning & Control','PPC'),
     (p_tenant,'Human Resources','HR'),(p_tenant,'Accounts & Finance','FIN'),
     (p_tenant,'Purchase','PUR'),(p_tenant,'Engineering','ENG'),(p_tenant,'EHS','EHS')
   on conflict do nothing;
-  insert into public.designations(tenant_id, name, grade) values
+  insert into hrm.designations(tenant_id, name, grade) values
     (p_tenant,'Operator','W1'),(p_tenant,'Senior Operator','W2'),(p_tenant,'Technician','W3'),
     (p_tenant,'Supervisor','S1'),(p_tenant,'Engineer','S2'),(p_tenant,'Senior Engineer','S3'),
     (p_tenant,'Assistant Manager','M1'),(p_tenant,'Manager','M2'),(p_tenant,'Senior Manager','M3'),
@@ -402,101 +410,101 @@ end $$;
 -- =====================================================================
 -- Row-level security
 -- =====================================================================
-alter table public.tenants                enable row level security;
-alter table public.tenant_domains         enable row level security;
-alter table public.plants                 enable row level security;
-alter table public.departments            enable row level security;
-alter table public.designations           enable row level security;
-alter table public.app_users              enable row level security;
-alter table public.employees              enable row level security;
-alter table public.employee_private       enable row level security;
-alter table public.onboarding_invites     enable row level security;
-alter table public.employee_documents     enable row level security;
-alter table public.id_cards               enable row level security;
-alter table public.passkeys               enable row level security;
-alter table public.notification_templates enable row level security;
-alter table public.notifications          enable row level security;
-alter table public.audit_log              enable row level security;
+alter table hrm.tenants                enable row level security;
+alter table hrm.tenant_domains         enable row level security;
+alter table hrm.plants                 enable row level security;
+alter table hrm.departments            enable row level security;
+alter table hrm.designations           enable row level security;
+alter table hrm.app_users              enable row level security;
+alter table hrm.employees              enable row level security;
+alter table hrm.employee_private       enable row level security;
+alter table hrm.onboarding_invites     enable row level security;
+alter table hrm.employee_documents     enable row level security;
+alter table hrm.id_cards               enable row level security;
+alter table hrm.passkeys               enable row level security;
+alter table hrm.notification_templates enable row level security;
+alter table hrm.notifications          enable row level security;
+alter table hrm.audit_log              enable row level security;
 
 -- Tenants: members read their own company; company admins edit branding.
-create policy tenants_read on public.tenants for select to authenticated
-  using (id = public.current_tenant_id());
-create policy tenants_update on public.tenants for update to authenticated
-  using (id = public.current_tenant_id() and public.has_role('company_admin'))
-  with check (id = public.current_tenant_id());
+create policy tenants_read on hrm.tenants for select to authenticated
+  using (id = hrm.current_tenant_id());
+create policy tenants_update on hrm.tenants for update to authenticated
+  using (id = hrm.current_tenant_id() and hrm.has_role('company_admin'))
+  with check (id = hrm.current_tenant_id());
 
-create policy domains_read on public.tenant_domains for select to authenticated
-  using (tenant_id = public.current_tenant_id());
+create policy domains_read on hrm.tenant_domains for select to authenticated
+  using (tenant_id = hrm.current_tenant_id());
 
 -- Masters: everyone in the tenant reads; HR writes.
 do $$
 declare t text;
 begin
   foreach t in array array['plants','departments','designations'] loop
-    execute format('create policy %I on public.%I for select to authenticated using (tenant_id = public.current_tenant_id())', t || '_read', t);
-    execute format('create policy %I on public.%I for all to authenticated using (tenant_id = public.current_tenant_id() and public.is_hr()) with check (tenant_id = public.current_tenant_id() and public.is_hr())', t || '_write', t);
+    execute format('create policy %I on hrm.%I for select to authenticated using (tenant_id = hrm.current_tenant_id())', t || '_read', t);
+    execute format('create policy %I on hrm.%I for all to authenticated using (tenant_id = hrm.current_tenant_id() and hrm.is_hr()) with check (tenant_id = hrm.current_tenant_id() and hrm.is_hr())', t || '_write', t);
   end loop;
 end $$;
 
 -- Users: everyone sees their own row; HR sees all users of the tenant; company admin manages.
-create policy app_users_self on public.app_users for select to authenticated
+create policy app_users_self on hrm.app_users for select to authenticated
   using (id = auth.uid());
-create policy app_users_hr_read on public.app_users for select to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr());
-create policy app_users_admin_write on public.app_users for update to authenticated
-  using (tenant_id = public.current_tenant_id() and public.has_role('company_admin'))
-  with check (tenant_id = public.current_tenant_id());
+create policy app_users_hr_read on hrm.app_users for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
+create policy app_users_admin_write on hrm.app_users for update to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('company_admin'))
+  with check (tenant_id = hrm.current_tenant_id());
 
 -- Employees: HR full access; managers read their team; employees read themselves.
-create policy employees_hr on public.employees for all to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr())
-  with check (tenant_id = public.current_tenant_id() and public.is_hr());
-create policy employees_self on public.employees for select to authenticated
-  using (id = public.current_employee_id());
-create policy employees_team on public.employees for select to authenticated
-  using (tenant_id = public.current_tenant_id() and public.has_role('manager') and public.is_in_my_team(id));
-create policy employees_payroll on public.employees for select to authenticated
-  using (tenant_id = public.current_tenant_id() and public.has_role('payroll'));
+create policy employees_hr on hrm.employees for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr())
+  with check (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
+create policy employees_self on hrm.employees for select to authenticated
+  using (id = hrm.current_employee_id());
+create policy employees_team on hrm.employees for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('manager') and hrm.is_in_my_team(id));
+create policy employees_payroll on hrm.employees for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('payroll'));
 
 -- Private (bank / statutory): HR and payroll, plus the employee themselves (read only).
-create policy private_hr on public.employee_private for all to authenticated
-  using (tenant_id = public.current_tenant_id() and public.has_role('hr_manager','hr_executive','payroll'))
-  with check (tenant_id = public.current_tenant_id() and public.has_role('hr_manager','hr_executive','payroll'));
-create policy private_self on public.employee_private for select to authenticated
-  using (employee_id = public.current_employee_id());
+create policy private_hr on hrm.employee_private for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('hr_manager','hr_executive','payroll'))
+  with check (tenant_id = hrm.current_tenant_id() and hrm.has_role('hr_manager','hr_executive','payroll'));
+create policy private_self on hrm.employee_private for select to authenticated
+  using (employee_id = hrm.current_employee_id());
 
-create policy invites_hr on public.onboarding_invites for all to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr())
-  with check (tenant_id = public.current_tenant_id() and public.is_hr());
+create policy invites_hr on hrm.onboarding_invites for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr())
+  with check (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
 
-create policy docs_hr on public.employee_documents for all to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr())
-  with check (tenant_id = public.current_tenant_id() and public.is_hr());
-create policy docs_self on public.employee_documents for select to authenticated
-  using (employee_id = public.current_employee_id());
+create policy docs_hr on hrm.employee_documents for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr())
+  with check (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
+create policy docs_self on hrm.employee_documents for select to authenticated
+  using (employee_id = hrm.current_employee_id());
 
-create policy id_cards_hr on public.id_cards for all to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr())
-  with check (tenant_id = public.current_tenant_id() and public.is_hr());
-create policy id_cards_self on public.id_cards for select to authenticated
-  using (employee_id = public.current_employee_id());
+create policy id_cards_hr on hrm.id_cards for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr())
+  with check (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
+create policy id_cards_self on hrm.id_cards for select to authenticated
+  using (employee_id = hrm.current_employee_id());
 
-create policy passkeys_self_read on public.passkeys for select to authenticated
+create policy passkeys_self_read on hrm.passkeys for select to authenticated
   using (user_id = auth.uid());
-create policy passkeys_self_delete on public.passkeys for delete to authenticated
+create policy passkeys_self_delete on hrm.passkeys for delete to authenticated
   using (user_id = auth.uid());
 
-create policy templates_read on public.notification_templates for select to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr());
-create policy templates_write on public.notification_templates for all to authenticated
-  using (tenant_id = public.current_tenant_id() and public.has_role('hr_manager'))
-  with check (tenant_id = public.current_tenant_id() and public.has_role('hr_manager'));
+create policy templates_read on hrm.notification_templates for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
+create policy templates_write on hrm.notification_templates for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('hr_manager'))
+  with check (tenant_id = hrm.current_tenant_id() and hrm.has_role('hr_manager'));
 
-create policy notifications_hr on public.notifications for select to authenticated
-  using (tenant_id = public.current_tenant_id() and public.is_hr());
+create policy notifications_hr on hrm.notifications for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.is_hr());
 
-create policy audit_admin on public.audit_log for select to authenticated
-  using (tenant_id = public.current_tenant_id() and public.has_role('hr_manager'));
+create policy audit_admin on hrm.audit_log for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('hr_manager'));
 
 -- =====================================================================
 -- Storage buckets
@@ -507,6 +515,6 @@ create policy audit_admin on public.audit_log for select to authenticated
 -- =====================================================================
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
-  ('branding', 'branding', true, 2097152, array['image/png','image/jpeg','image/webp','image/svg+xml']),
-  ('employee-docs', 'employee-docs', false, 10485760, array['image/png','image/jpeg','image/webp','application/pdf'])
+  ('hrm-branding', 'hrm-branding', true, 2097152, array['image/png','image/jpeg','image/webp','image/svg+xml']),
+  ('hrm-docs', 'hrm-docs', false, 10485760, array['image/png','image/jpeg','image/webp','application/pdf'])
 on conflict (id) do nothing;

@@ -1,4 +1,5 @@
 "use client";
+import { DOCS_BUCKET } from "@/lib/buckets";
 import { p } from "@/lib/base-path";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -397,7 +398,7 @@ function useUploader(token: string, sb: { url: string; key: string }) {
   return async (docType: string, blob: Blob, fileName: string) => {
     const mime = blob.type || "image/jpeg";
     const u = await api(token, { action: "upload-url", doc_type: docType, mime, size: blob.size, file_name: fileName });
-    const { error } = await client.storage.from("employee-docs").uploadToSignedUrl(u.path, u.token, blob, { contentType: mime });
+    const { error } = await client.storage.from(DOCS_BUCKET).uploadToSignedUrl(u.path, u.token, blob, { contentType: mime });
     if (error) throw new Error("Upload failed. Please check your connection and try again.");
     const c = await api(token, { action: "confirm-upload", doc_type: docType, path: u.path, mime, size: blob.size, file_name: fileName });
     return c.doc as Doc;

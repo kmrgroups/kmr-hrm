@@ -3,6 +3,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTenant } from "@/lib/tenant";
+import { licenceFor } from "@/lib/licence";
 import type { AppUser, Role, Tenant } from "@/lib/types";
 
 export const HR_ROLES: Role[] = ["company_admin", "platform_admin", "hr_manager", "hr_executive"];
@@ -34,6 +35,7 @@ export const getSession = cache(async (): Promise<Session | null> => {
 export async function requireSession(): Promise<Session> {
   const s = await getSession();
   if (!s) redirect("/login");
+  if (s.user.role !== "platform_admin" && !(await licenceFor(s.tenant.id)).ok) redirect("/suspended");
   return s;
 }
 
@@ -57,6 +59,10 @@ export async function assertRole(roles: Role[]): Promise<Session> {
   const s = await getSession();
   if (!s) throw new Error("Please sign in again.");
   if (!hasRole(s.user, roles)) throw new Error("You do not have permission for this action.");
+  if (s.user.role !== "platform_admin") {
+    const l = await licenceFor(s.tenant.id);
+    if (!l.ok) throw new Error(`${l.message} Please contact KMR Group of Companies.`);
+  }
   return s;
 }
 

@@ -1,7 +1,9 @@
 "use server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getTenant } from "@/lib/tenant";
+import { COMPANY_COOKIE, hostTenant, tenantById } from "@/lib/tenant";
+import { licenceFor } from "@/lib/licence";
+import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notify } from "@/lib/notify";
 import { env } from "@/lib/env";
@@ -20,21 +22,32 @@ function safeNext(next: FormDataEntryValue | null): string | null {
   return n.startsWith("/") && !n.startsWith("//") ? n : null;
 }
 
-/** After Supabase accepts the credentials, make sure the user belongs to this company's portal. */
+/**
+ * After Supabase accepts the credentials: the person must have an active HRM login, their company's
+ * licence must be valid, and on a company's own domain they must belong to that company.
+ */
 async function finishLogin(next: string | null): Promise<LoginState> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const tenant = await getTenant();
-  if (!user || !tenant) return { error: "Sign-in failed. Please try again." };
+  if (!user) return { error: "Sign-in failed. Please try again." };
   const { data: appUser } = await supabase
     .from("app_users")
     .select("id,tenant_id,role,full_name,email,phone,employee_id,must_change_password,active")
     .eq("id", user.id)
     .maybeSingle();
-  if (!appUser || !appUser.active || (appUser.tenant_id !== tenant.id && appUser.role !== "platform_admin")) {
+  const own = await hostTenant();
+  if (!appUser || !appUser.active || (own && appUser.tenant_id !== own.id && appUser.role !== "platform_admin")) {
     await supabase.auth.signOut();
-    return { error: `This account is not registered with ${tenant.name}, or it has been deactivated.` };
+    return { error: own ? `This account is not registered with ${own.name}, or it has been deactivated.` : "This account does not have access to the HRM, or it has been deactivated." };
   }
+  const tenant = await tenantById(appUser.tenant_id);
+  if (!tenant) { await supabase.auth.signOut(); return { error: "Your company's HRM account is not active." }; }
+  const licence = await licenceFor(tenant.id);
+  if (!licence.ok && appUser.role !== "platform_admin") {
+    await supabase.auth.signOut();
+    return { error: `${licence.message} Please contact KMR Group of Companies.` };
+  }
+  (await cookies()).set(COMPANY_COOKIE, tenant.slug, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax", secure: true, httpOnly: true });
   const home = homeFor(appUser as AppUser);
   redirect(appUser.must_change_password ? home : next || home);
 }
@@ -71,14 +84,15 @@ export async function sendOtp(_: LoginState, form: FormData): Promise<LoginState
 
   if (!email || !isValidEmail(email)) return { error: "Enter your registered email." };
   const sent: LoginState = { otpSentTo: email, info: `If ${email} is registered here, a sign-in code has been sent to it. Check your inbox and spam folder.` };
-  const tenant = await getTenant();
-  if (!tenant) return { error: "No company is set up for this web address." };
   const db = createAdminClient();
 
-  // Only people with a login at this company get a code; the reply is the same either way.
-  const { data: user } = await db.from("app_users").select("id,full_name,active,tenant_id,role").eq("email", email)
-    .or(`tenant_id.eq.${tenant.id},role.eq.platform_admin`).maybeSingle();
+  // Only people with an HRM login get a code; the reply is the same either way.
+  const { data: user } = await db.from("app_users").select("id,full_name,active,tenant_id,role").eq("email", email).maybeSingle();
   if (!user || !user.active) return sent;
+  const own = await hostTenant();
+  if (own && user.tenant_id !== own.id && user.role !== "platform_admin") return sent;
+  const tenant = await tenantById(user.tenant_id);
+  if (!tenant) return sent;
 
   const { count } = await db.from("notifications").select("id", { count: "exact", head: true })
     .eq("event", "login_code").eq("recipient", email).gte("created_at", new Date(Date.now() - 10 * 6e4).toISOString());

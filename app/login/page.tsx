@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getTenant, logoUrl } from "@/lib/tenant";
+import { getTenant, logoUrl, tenantBySlug } from "@/lib/tenant";
 import { getSession, homeFor } from "@/lib/auth";
 import { IST_OFFSET_MIN } from "@/lib/attendance/time";
 import { LoginForm } from "./LoginForm";
@@ -17,31 +17,25 @@ function greeting() {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  const tenant = await getTenant();
-  if (!tenant) {
-    return (
-      <div className="authwrap">
-        <div className="authcard">
-          <h1>Portal not found</h1>
-          <p className="sub">No company is set up for this web address. Please check the link from your HR team.</p>
-        </div>
-      </div>
-    );
-  }
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; co?: string }> }) {
+  const { co } = await searchParams;
+  // Sign-in links from the KMR Console carry ?co=<company> so the page shows that company's branding
+  const tenant = (co && /^[a-z0-9-]{2,40}$/.test(co) ? await tenantBySlug(co) : null) ?? await getTenant();
+  // Shared platform address with no company chosen yet: neutral branding; the company is known after sign-in.
+  const brand = tenant ?? { name: "HRM Suite", legal_name: "HRM Suite", logo_path: null };
   const session = await getSession();
   if (session) redirect(homeFor(session.user));
   const { next } = await searchParams;
-  const logo = logoUrl(tenant);
-  const initials = tenant.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
+  const logo = logoUrl(brand);
+  const initials = brand.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 
   return (
     <div className="signin">
       <aside className="signin-brand">
         <div className="signin-brand-inner">
-          <div className="signin-logo">{logo ? <img src={logo} alt={tenant.name} /> : <span>{initials}</span>}</div>
+          <div className="signin-logo">{logo ? <img src={logo} alt={brand.name} /> : <span>{initials}</span>}</div>
           <div className="signin-company">
-            <h2>{tenant.legal_name || tenant.name}</h2>
+            <h2>{brand.legal_name || brand.name}</h2>
             <p>HR &amp; Employee Portal</p>
           </div>
           <ul className="signin-features">
@@ -57,10 +51,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
       <main className="signin-panel">
         <div className="signin-card">
-          <div className="signin-mobile-logo">{logo ? <img src={logo} alt={tenant.name} /> : null}</div>
+          <div className="signin-mobile-logo">{logo ? <img src={logo} alt={brand.name} /> : null}</div>
           <p className="signin-hello">{greeting()} 👋</p>
           <h1>Welcome back</h1>
-          <p className="signin-sub">Sign in to continue to {tenant.name}</p>
+          <p className="signin-sub">Sign in to continue to {brand.name}</p>
           <LoginForm next={next ?? ""} />
           <p className="signin-secure">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4" /></svg>

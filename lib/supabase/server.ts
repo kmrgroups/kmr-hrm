@@ -3,12 +3,15 @@ import { createServerClient } from "@supabase/ssr";
 import { authCookieOptions } from "@/lib/supabase/cookie-options";
 import { cookies } from "next/headers";
 import { env } from "@/lib/env";
+import { DB_SCHEMA } from "@/lib/buckets";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Supabase client acting as the signed-in user (row-level security applies). */
-export async function createClient() {
+export async function createClient(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
-  return createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
+  return (createServerClient(env.supabaseUrl, env.supabaseAnonKey, {
     cookieOptions: authCookieOptions,
+    db: { schema: DB_SCHEMA },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -21,5 +24,5 @@ export async function createClient() {
         }
       },
     },
-  });
+  }) as unknown as SupabaseClient);
 }

@@ -1,5 +1,10 @@
 # HRM Suite — Phase 1: Foundation + Core HR
 
+> **On the KMR platform** the HRM runs at `www.kmr-groups.com/it/hrm` for every customer company, in the `hrm`
+> schema of the shared KMR Supabase project, with each company's access controlled by a licence in the **KMR Console**
+> (`kmrgroups/kmr-console`, see its docs/PLATFORM_SETUP.md). A dedicated copy for one customer can still use
+> `supabase/SETUP_FULL.sql` with `KMR_LICENCE_CHECK=off`.
+
 A multi-company HR platform. It runs as a standalone product (`deno.hrmsuite.in`) and on
 each customer's own domain (`hr.customer.com`) with their logo and colours.
 

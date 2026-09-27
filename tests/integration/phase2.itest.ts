@@ -32,7 +32,7 @@ const balance = async (emp: string, code: string, year: number) => {
 };
 
 beforeAll(async () => {
-  db = createClient(URL_, SERVICE, { auth: { persistSession: false } });
+  db = createClient(URL_, SERVICE, { auth: { persistSession: false }, db: { schema: "hrm" } }) as unknown as SupabaseClient;
   svc = await import("@/lib/attendance/service");
   leave = await import("@/lib/leave/service");
   const slug = `it-${Date.now().toString(36)}`;

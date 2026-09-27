@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findInvite } from "@/lib/onboarding";
-import { getTenant, logoUrl } from "@/lib/tenant";
+import { getTenant, logoUrl, tenantById } from "@/lib/tenant";
 import { signedDocUrl } from "@/lib/storage";
 import { fullName, fmtDate, one } from "@/components/ui";
 import { Wizard, type WizardInitial } from "./Wizard";
@@ -25,8 +25,8 @@ function Frame({ tenant, children }: { tenant: { name: string; legal_name: strin
 
 export default async function OnboardPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const tenant = await getTenant();
   const found = await findInvite(token);
+  const tenant = found ? await tenantById(found.invite.tenant_id) : await getTenant();
 
   if (!found || !tenant || found.invite.tenant_id !== tenant.id) {
     return <Frame tenant={tenant}><div className="card"><h1>Link not valid</h1><p>This onboarding link is not valid. Please use the latest link sent to you by HR, or contact them for a new one.</p></div></Frame>;

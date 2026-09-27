@@ -31,7 +31,7 @@ do $$
 declare s record;
 begin
   select * into s from hrm_setup;
-  if to_regclass('public.tenants') is not null then
+  if to_regclass('hrm.tenants') is not null then
     raise exception 'HRM tables already exist in this database. This file is for a new, empty project. To upgrade an existing Phase 1 database, run only supabase/migrations/0002_attendance_leave.sql.';
   end if;
   if not exists (select 1 from auth.users where lower(email) = lower(s.admin_email)) then

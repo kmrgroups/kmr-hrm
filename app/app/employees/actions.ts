@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { assertSeat } from "@/lib/licence";
 import { assertRole, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,6 +41,7 @@ const employeeSchema = z.object({
 export async function createEmployee(_: ActionState, form: FormData): Promise<ActionState> {
   try {
     const { user, tenant } = await assertRole(HR_ROLES);
+    await assertSeat(tenant.id);
     const parsed = employeeSchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const supabase = await createClient();

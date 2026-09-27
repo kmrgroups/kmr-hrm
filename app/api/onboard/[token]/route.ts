@@ -7,7 +7,7 @@ import { ALLOWED_UPLOAD_TYPES, DOCS_BUCKET, MAX_UPLOAD_BYTES, docPath } from "@/
 import { DOCUMENT_TYPES } from "@/lib/types";
 import { notify } from "@/lib/notify";
 import { logAudit } from "@/lib/audit";
-import { currentOrigin, getTenant } from "@/lib/tenant";
+import { currentOrigin, tenantById } from "@/lib/tenant";
 import { fullName } from "@/components/ui";
 
 type Body =
@@ -27,8 +27,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { invite } = found;
 
   // A link must be used on its own company's portal
-  const tenant = await getTenant();
-  if (!tenant || tenant.id !== invite.tenant_id) return err("This link is not valid here.", 404);
+  const tenant = await tenantById(invite.tenant_id);
+  if (!tenant) return err("This link is not valid here.", 404);
 
   const db = createAdminClient();
   const body = (await req.json().catch(() => null)) as Body | null;

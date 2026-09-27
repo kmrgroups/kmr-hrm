@@ -33,6 +33,11 @@ each customer's own domain (`hr.customer.com`) with their logo and colours.
 
 Payroll, recruitment and the QMS modules follow in Phases 3–5 (see the product spec).
 
+### Setting up
+
+Follow **docs/SETUP_GUIDE.md**. A new Supabase project needs just one file: `supabase/SETUP_FULL.sql`
+(regenerate it with `node scripts/build-setup-sql.mjs` after changing a migration).
+
 ### Upgrading an existing Phase 1 installation
 
 1. Supabase → SQL editor → run `supabase/migrations/0002_attendance_leave.sql` once. Existing companies get

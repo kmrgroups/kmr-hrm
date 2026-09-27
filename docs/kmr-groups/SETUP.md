@@ -21,7 +21,7 @@ Browser ── www.kmr-groups.com/it/hrm/... ──► KMR Vercel project ──
 ## 2. HRM project on Vercel
 
 Import the HRM repository as a **new** Vercel project (e.g. `kmr-hrm`) with these
-environment variables (plus the Supabase / Resend / WhatsApp ones from `.env.example`):
+environment variables (plus the Supabase / Resend / WhatsApp ones from `docs/env.example.txt`):
 
 | Variable | Value |
 | --- | --- |

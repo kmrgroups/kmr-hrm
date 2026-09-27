@@ -68,7 +68,7 @@ Follow **docs/SETUP_GUIDE.md**. A new Supabase project needs just one file: `sup
 ## 2. Deploy on Vercel
 
 1. Push this folder to a GitHub repository and import it in Vercel.
-2. Add the environment variables from `.env.example`:
+2. Add the environment variables from `docs/env.example.txt`:
 
 | Variable | Where it comes from |
 | --- | --- |

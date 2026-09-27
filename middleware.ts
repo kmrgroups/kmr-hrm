@@ -4,7 +4,7 @@ import { authCookieOptions } from "@/lib/supabase/cookie-options";
 
 // Pages that need a signed-in user. Everything else (login, onboarding links,
 // QR verification, public assets) is reachable without a session.
-const PROTECTED = ["/app", "/me", "/account"];
+const PROTECTED = ["/app", "/me", "/account", "/help"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });

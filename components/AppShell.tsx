@@ -40,6 +40,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/me/attendance", label: "My attendance", icon: "clock", show: !!user.employee_id },
     { href: "/me/leave", label: "My leave", icon: "calendar", show: !!user.employee_id },
     { href: "/account", label: "My account", icon: "key", show: true },
+    { href: "/help", label: "Help & support", icon: "inbox", show: true },
   ];
 
   const isActive = (href: string) => active === href;

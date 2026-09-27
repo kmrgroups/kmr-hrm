@@ -2,15 +2,11 @@ import { redirect } from "next/navigation";
 import { getTenant, logoUrl, tenantBySlug } from "@/lib/tenant";
 import { getSession, homeFor } from "@/lib/auth";
 import { IST_OFFSET_MIN } from "@/lib/attendance/time";
+import { FusionScene } from "@/components/fusion/FusionScene";
+import "@/components/fusion/fusion.css";
 import { LoginForm } from "./LoginForm";
 
 export const metadata = { title: "Sign in" };
-
-const FEATURES = [
-  { title: "Attendance & leave", text: "Your punches, balances and requests in one place", d: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2" },
-  { title: "Onboarding & ID cards", text: "Joining formalities and your digital ID, on any device", d: "M3 5h18v14H3zM7 9a2 2 0 1 0 0 4 2 2 0 0 0 0-4M5 16c.5-1.5 1.5-2 2-2s1.5.5 2 2M13 10h5M13 14h4" },
-  { title: "Secure sign-in", text: "Password, email code, or Face ID / fingerprint", d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10M9 12l2 2 4-4" },
-];
 
 function greeting() {
   const h = new Date(Date.now() + IST_OFFSET_MIN * 6e4).getUTCHours();
@@ -18,50 +14,31 @@ function greeting() {
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; co?: string }> }) {
-  const { co } = await searchParams;
+  const { co, next } = await searchParams;
   // Sign-in links from the KMR Console carry ?co=<company> so the page shows that company's branding
   const tenant = (co && /^[a-z0-9-]{2,40}$/.test(co) ? await tenantBySlug(co) : null) ?? await getTenant();
-  // Shared platform address with no company chosen yet: neutral branding; the company is known after sign-in.
-  const brand = tenant ?? { name: "HRM Suite", legal_name: "HRM Suite", logo_path: null };
   const session = await getSession();
   if (session) redirect(homeFor(session.user));
-  const { next } = await searchParams;
+  const brand = tenant ?? { name: "HRM Suite", legal_name: "HRM Suite", logo_path: null };
   const logo = logoUrl(brand);
   const initials = brand.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 
   return (
-    <div className="signin">
-      <aside className="signin-brand">
-        <div className="signin-brand-inner">
-          <div className="signin-logo">{logo ? <img src={logo} alt={brand.name} /> : <span>{initials}</span>}</div>
-          <div className="signin-company">
-            <h2>{brand.legal_name || brand.name}</h2>
-            <p>HR &amp; Employee Portal</p>
+    <div className="fz-split">
+      <FusionScene variant="hrm" chip="HRM Suite" headline="From punch to" em="payroll-ready." sub="Onboarding, ID cards, attendance and leave — for every plant and shift."
+        tags={["Biometric · Face ID", "Shifts & leave", "Digital ID cards"]} />
+      <section className="fz-panel">
+        <div className="fz-form">
+          <div className="fz-co">
+            {logo ? <img src={logo} alt={brand.name} /> : <span className="fb">{initials}</span>}
+            <div>{brand.legal_name || brand.name}<small>HR &amp; Employee Portal</small></div>
           </div>
-          <ul className="signin-features">
-            {FEATURES.map((f) => (
-              <li key={f.title}>
-                <span className="ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={f.d} /></svg></span>
-                <span><b>{f.title}</b><br /><small>{f.text}</small></span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </aside>
-
-      <main className="signin-panel">
-        <div className="signin-card">
-          <div className="signin-mobile-logo">{logo ? <img src={logo} alt={brand.name} /> : null}</div>
-          <p className="signin-hello">{greeting()} 👋</p>
-          <h1>Welcome back</h1>
-          <p className="signin-sub">Sign in to continue to {brand.name}</p>
+          <h2>{greeting()}</h2>
+          <p className="fz-sub">Sign in to continue to {brand.name}.</p>
           <LoginForm next={next ?? ""} />
-          <p className="signin-secure">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4" /></svg>
-            Secure sign-in · Need help? Contact HR
-          </p>
+          <p className="fz-note">Secure sign-in · Need help? Contact your HR team</p>
         </div>
-      </main>
+      </section>
     </div>
   );
 }

@@ -20,15 +20,26 @@ export default async function CompanySettings() {
 
   return (
     <AppShell session={session} active="/app/settings">
-      <div className="pagehead"><div><h1>Company &amp; branding</h1><p>Shown on the login page, emails, WhatsApp messages, onboarding forms and ID cards.</p></div></div>
+      <div className="pagehead"><div><h1>{managed ? "HR settings" : "Company & branding"}</h1><p>{managed ? "Notifications, ID cards and employee codes for the HRM." : "Shown on the login page, emails, WhatsApp messages, onboarding forms and ID cards."}</p></div></div>
       <ActionForm action={saveCompany} submitLabel="Save settings">
+        {managed ? (
+          <div className="card">
+            <h2>HR codes</h2>
+            <p className="muted" style={{ marginTop: 0 }}>Company name, address, contact details and logo are managed once for all your KMR apps in <b>KMR Apps › Administration</b>.</p>
+            <div className="formgrid">
+            <input type="hidden" name="name" value={t.name} /><input type="hidden" name="legal_name" value={t.legal_name ?? ""} />
+            <input type="hidden" name="address" value={t.address ?? ""} /><input type="hidden" name="phone" value={t.phone ?? ""} />
+            <input type="hidden" name="email" value={t.email ?? ""} /><input type="hidden" name="website" value={t.website ?? ""} />
+            <input type="hidden" name="primary_color" value={t.primary_color} /><input type="hidden" name="accent_color" value={t.accent_color} />
+            <label className="field">Employee code prefix<input name="emp_code_prefix" defaultValue={t.emp_code_prefix} maxLength={6} /><span className="help">Codes look like {t.emp_code_prefix}-PLANT-0001</span></label>
+            </div>
+          </div>
+        ) : (<>
         <div className="card">
           <h2>Company</h2>
           <div className="formgrid">
-            {managed ? <input type="hidden" name="name" value={t.name} /> : null}
-            <label className="field" hidden={managed}><span>Short name <span className="req">*</span></span><input name={managed ? "_name" : "name"} defaultValue={t.name} required={!managed} /><span className="help">e.g. DENO</span></label>
-            {managed ? <input type="hidden" name="legal_name" value={t.legal_name ?? ""} /> : null}
-            <label className="field" hidden={managed}>Legal name<input name={managed ? "_legal_name" : "legal_name"} defaultValue={t.legal_name ?? ""} /><span className="help">e.g. DENO Manufacturing and Solutions India Pvt Ltd</span></label>
+            <label className="field"><span>Short name <span className="req">*</span></span><input name="name" defaultValue={t.name} required /><span className="help">e.g. DENO</span></label>
+            <label className="field">Legal name<input name="legal_name" defaultValue={t.legal_name ?? ""} /><span className="help">e.g. DENO Manufacturing and Solutions India Pvt Ltd</span></label>
             <label className="field full">Address<textarea name="address" defaultValue={t.address ?? ""} /><span className="help">Printed on the back of ID cards</span></label>
             <label className="field">Phone<input name="phone" defaultValue={t.phone ?? ""} /></label>
             <label className="field">Email<input name="email" type="email" defaultValue={t.email ?? ""} /></label>
@@ -36,15 +47,14 @@ export default async function CompanySettings() {
             <label className="field">Employee code prefix<input name="emp_code_prefix" defaultValue={t.emp_code_prefix} maxLength={6} /><span className="help">Codes look like {t.emp_code_prefix}-PLANT-0001</span></label>
           </div>
         </div>
-        <div className="card" hidden={managed}>
+        <div className="card">
           <h2>Branding</h2>
           <div className="formgrid">
             <div className="field">Logo
               {logo ? <img src={logo} alt="" style={{ maxHeight: 60, maxWidth: 220, border: "1px solid var(--border)", borderRadius: 6, padding: 6, background: "#fff" }} /> : <span className="help">No logo yet</span>}
-              {managed ? <span className="help">The logo, company name and legal name come from <b>KMR Apps › Administration</b> and apply to all your KMR apps.</span> : <>
-              <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
+                            <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
               <span className="help">PNG with transparent background works best. Max 2 MB.</span>
-              {logo && <label className="check" style={{ fontWeight: 400 }}><input type="checkbox" name="remove_logo" value="1" /> Remove logo</label>}</>}
+              {logo && <label className="check" style={{ fontWeight: 400 }}><input type="checkbox" name="remove_logo" value="1" /> Remove logo</label>}
             </div>
             <div className="row" style={{ alignItems: "flex-start", gap: 24 }}>
               <label className="field">Primary colour<input type="color" name="primary_color" defaultValue={t.primary_color} /></label>
@@ -52,6 +62,7 @@ export default async function CompanySettings() {
             </div>
           </div>
         </div>
+        </>)}
         <div className="card">
           <h2>Notifications</h2>
           <div className="formgrid">

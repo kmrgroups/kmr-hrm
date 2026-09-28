@@ -1,3 +1,4 @@
+import { redirect as kmrRedirect } from "next/navigation";
 import { p } from "@/lib/base-path";
 import { requireSession, homeFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +9,7 @@ import { PasswordForm, PasskeyManager } from "./AccountForms";
 export const metadata = { title: "My account" };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ first?: string }> }) {
+  if ((process.env.KMR_LICENCE_CHECK || "on").toLowerCase() !== "off") kmrRedirect("/app");   // one login: password and sign-in live in KMR Apps
   const session = await requireSession();
   const { first } = await searchParams;
   const supabase = await createClient();

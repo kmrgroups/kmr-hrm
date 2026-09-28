@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { verifiedUserId } from "@/lib/verified-user";
 import { unstable_cache } from "next/cache";
 import { BRANDING_BUCKET } from "@/lib/buckets";
 import { cookies, headers } from "next/headers";
@@ -44,10 +45,9 @@ export const hostTenant = cache(async (): Promise<Tenant | null> => {
 
 /** Company of the signed-in person (null when signed out) */
 const signedInTenant = cache(async (): Promise<Tenant | null> => {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data } = await createAdminClient().from("app_users").select("tenant_id").eq("id", user.id).maybeSingle();
+  const uid = await verifiedUserId();                   // verified once per request (see lib/verified-user.ts)
+  if (!uid) return null;
+  const { data } = await createAdminClient().from("app_users").select("tenant_id").eq("id", uid).maybeSingle();
   return data ? tenantById(data.tenant_id) : null;
 });
 

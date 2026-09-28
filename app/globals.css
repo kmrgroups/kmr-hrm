@@ -337,3 +337,8 @@ input.invalid, select.invalid { border-color: var(--danger); background: #fffafa
   .signin-panel { padding: 22px 16px 36px; align-items: flex-start; }
   .signin-card { padding: 26px 20px; box-shadow: none; }
 }
+
+/* standard KMR footer: back link on the left, "Powered By" centred (same in every KMR tool) */
+.powered-by { display: flex !important; align-items: center; justify-content: space-between; gap: 12px; padding-left: 14px; padding-right: 14px; }
+.powered-by .kmr-back-slot { flex: 1 1 0; min-width: 0; display: flex; }
+.kmr-back-link { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: linear-gradient(90deg, #7C3AED, #DB2777); color: #fff !important; font-weight: 700; font-size: 12.5px; text-decoration: none !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }

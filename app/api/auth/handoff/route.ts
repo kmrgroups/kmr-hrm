@@ -7,7 +7,7 @@ import { redirectTo } from "@/lib/redirect";
 // current session here and the HRM adopts it, so they are not asked to sign in twice. Only the person's own
 // tokens are accepted; HRM access is still checked on every page (login, company, licence).
 export async function POST(req: Request) {
-  const form = await req.formData();
+  const form = await req.formData().catch(() => new FormData());   // bad or empty request: fail gracefully
   const access_token = String(form.get("access_token") ?? "");
   const refresh_token = String(form.get("refresh_token") ?? "");
   const back = (path: string) => redirectTo(path);

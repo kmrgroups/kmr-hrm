@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { verifiedUserId } from "@/lib/verified-user";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTenant } from "@/lib/tenant";
@@ -16,9 +17,10 @@ export interface Session {
 
 /** The signed-in user's profile, only if it belongs to the company of this domain. */
 export const getSession = cache(async (): Promise<Session | null> => {
+  const uid = await verifiedUserId();
+  if (!uid) return null;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const user = { id: uid };
   const tenant = await getTenant();
   if (!tenant) return null;
   const { data: appUser } = await supabase

@@ -128,5 +128,5 @@ export async function sendOtp(_: LoginState, form: FormData): Promise<LoginState
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  redirect("/login");
+  redirect("/login?signedout=1");
 }

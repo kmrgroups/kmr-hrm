@@ -33,7 +33,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/settings/attendance", label: "Attendance setup", icon: "clock", show: hr },
     { href: "/app/settings/leave", label: "Leave policy", icon: "calendar", show: hr },
     { href: "/app/settings/data", label: "Data & backups", icon: "download", show: hasRole(user, ["hr_manager"]) },
-    { href: "/app/settings/users", label: "Users & roles", icon: "shield", show: admin },
+    { href: "/app/settings/users", label: "Users & roles", icon: "shield", show: (process.env.KMR_LICENCE_CHECK || "on").toLowerCase() === "off" && admin },
     { href: "/app/settings/templates", label: "Message templates", icon: "mail", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/audit", label: "Audit trail", icon: "list", show: hasRole(user, ["hr_manager"]) },
   ];

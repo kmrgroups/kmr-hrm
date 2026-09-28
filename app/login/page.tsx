@@ -24,6 +24,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const logo = logoUrl(brand);
   const initials = brand.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 
+  if (direct !== "1") {
+    return (
+      <div style={{ minHeight: "calc(100vh - var(--footer-h, 44px))", display: "grid", placeItems: "center", background: "#f5f7fb", padding: 24 }}>
+        <div style={{ textAlign: "center", maxWidth: 440 }}>
+          {logo ? <img src={logo} alt="" style={{ height: 56, maxWidth: 200, objectFit: "contain", marginBottom: 18 }} /> : null}
+          <SsoBridge co={tenant && co === tenant.slug ? co : ""} next={next ?? ""} failed={sso === "failed" ? (why || "x") : ""} signedOut={signedout === "1"} />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="fz-split">
       <FusionScene variant="hrm" chip="HRM Suite" headline="From punch to" em="payroll-ready." sub="Onboarding, ID cards, attendance and leave — for every plant and shift."

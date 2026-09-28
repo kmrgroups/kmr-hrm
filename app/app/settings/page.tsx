@@ -25,8 +25,10 @@ export default async function CompanySettings() {
         <div className="card">
           <h2>Company</h2>
           <div className="formgrid">
-            <label className="field"><span>Short name <span className="req">*</span></span><input name="name" defaultValue={t.name} required readOnly={managed} /><span className="help">e.g. DENO</span></label>
-            <label className="field">Legal name<input name="legal_name" defaultValue={t.legal_name ?? ""} readOnly={managed} /><span className="help">e.g. DENO Manufacturing and Solutions India Pvt Ltd</span></label>
+            {managed ? <input type="hidden" name="name" value={t.name} /> : null}
+            <label className="field" hidden={managed}><span>Short name <span className="req">*</span></span><input name={managed ? "_name" : "name"} defaultValue={t.name} required={!managed} /><span className="help">e.g. DENO</span></label>
+            {managed ? <input type="hidden" name="legal_name" value={t.legal_name ?? ""} /> : null}
+            <label className="field" hidden={managed}>Legal name<input name={managed ? "_legal_name" : "legal_name"} defaultValue={t.legal_name ?? ""} /><span className="help">e.g. DENO Manufacturing and Solutions India Pvt Ltd</span></label>
             <label className="field full">Address<textarea name="address" defaultValue={t.address ?? ""} /><span className="help">Printed on the back of ID cards</span></label>
             <label className="field">Phone<input name="phone" defaultValue={t.phone ?? ""} /></label>
             <label className="field">Email<input name="email" type="email" defaultValue={t.email ?? ""} /></label>
@@ -34,7 +36,7 @@ export default async function CompanySettings() {
             <label className="field">Employee code prefix<input name="emp_code_prefix" defaultValue={t.emp_code_prefix} maxLength={6} /><span className="help">Codes look like {t.emp_code_prefix}-PLANT-0001</span></label>
           </div>
         </div>
-        <div className="card">
+        <div className="card" hidden={managed}>
           <h2>Branding</h2>
           <div className="formgrid">
             <div className="field">Logo

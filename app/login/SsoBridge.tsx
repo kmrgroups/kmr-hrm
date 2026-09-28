@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { p } from "@/lib/base-path";
+import { createClient as createPlainClient } from "@supabase/supabase-js";
 
 /**
  * One login for every KMR app: the HRM has no login form of its own. It takes over the KMR Apps sign-in
@@ -15,18 +16,28 @@ export function SsoBridge({ co, next, failed, signedOut }: { co: string; next: s
     const home = portal?.slug ? `/it/app/${encodeURIComponent(portal.slug)}` : "/it/apps.html";
     const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i) || "").filter((k) => /^sb-.+-auth-token$/.test(k));
     if (signedOut) { keys.forEach((k) => localStorage.removeItem(k)); location.replace(home); return; }
+    if (failed === "token" || failed === "x") { keys.forEach((k) => localStorage.removeItem(k)); location.replace(`${home}?open=hrm`); return; }
     if (failed) {
-      setMsg(failed === "company" ? "This login belongs to a different company." : failed === "access" ? "Your login has not been added to the HRM yet — please ask your company's administrator." : "We couldn't sign you in automatically.");
-      return;
+      setMsg(failed === "company" ? "This login belongs to a different company." : "Your login has not been added to the HRM yet — please ask your company's administrator.");
     }
-    let session: { access_token?: string; refresh_token?: string } | null = null;
-    for (const k of keys) { try { const v = JSON.parse(localStorage.getItem(k) || "null"); session = v?.currentSession ?? v; if (session?.refresh_token) break; } catch { /* skip */ } }
-    if (!session?.refresh_token) { location.replace(`${home}?open=hrm`); return; }
+    if (failed) return;
+    (async () => {
+      // A FRESH session from the shared KMR sign-in (the same library as the KMR Apps page renews it and keeps it in sync)
+      let session: { access_token?: string; refresh_token?: string } | null = null;
+      if (keys.length) {
+        try {
+          const sb = createPlainClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+          const { data } = await sb.auth.getSession();
+          session = data.session;
+        } catch { /* none */ }
+      }
+      if (!session?.refresh_token) { location.replace(`${home}?open=hrm`); return; }
     const f = document.createElement("form"); f.method = "POST"; f.action = p("/api/auth/handoff");
     Object.entries({ access_token: session.access_token || "", refresh_token: session.refresh_token, co, next }).forEach(([k, v]) => {
       const i = document.createElement("input"); i.type = "hidden"; i.name = k; i.value = v || ""; f.append(i);
     });
-    document.body.append(f); f.submit();
+      document.body.append(f); f.submit();
+    })();
   }, [co, next, failed, signedOut]);
   return (
     <div className="fz-form" style={{ textAlign: "center" }}>

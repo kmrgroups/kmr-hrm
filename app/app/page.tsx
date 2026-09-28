@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { fullName, fmtDateTime, Empty, one } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { istToday } from "@/lib/attendance/time";
+import { AutoBackup } from "@/components/AutoBackup";
 
 export const metadata = { title: "Dashboard" };
 
@@ -53,6 +54,7 @@ export default async function Dashboard() {
 
   return (
     <AppShell session={session} active="/app">
+      {hasRole(session.user, ["hr_manager"]) && <AutoBackup company={session.tenant.slug} />}
       <div className="pagehead">
         <div>
           <h1>Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {session.user.full_name.split(" ")[0]}</h1>

@@ -10,10 +10,12 @@ import { recomputeAttendance } from "@/lib/attendance/service";
 import { addDays, istToday } from "@/lib/attendance/time";
 import { leaveYearOf } from "@/lib/leave/rules";
 import { applyCredits } from "@/lib/leave/service";
+import { saveNightlyBackup } from "@/lib/data-tools";
 
 export const maxDuration = 60;
 
-// Daily job (vercel.json, 09:00 India time):
+// Daily job (vercel.json, 12:05 AM India time):
+//  • saves each company's nightly JSON backup (kept 7 days; downloaded to the admin's computer on first visit)
 //  • reminds new joiners who have not finished onboarding (after 1, 3 and 5 days) and marks expired links
 //  • finalises attendance for the last two days (marks absentees, picks up late device uploads)
 //  • adds leave credits that have fallen due (yearly at the start of the leave year, monthly accruals)
@@ -71,7 +73,8 @@ export async function GET(req: Request) {
       const days = await recomputeAttendance(t.id, "all", addDays(today, -2), today, { db });
       const sm = Math.min(12, Math.max(1, (t.settings as Tenant["settings"])?.leave_year_start_month ?? 1));
       const credits = await applyCredits(t.id, leaveYearOf(today, sm), today);
-      attendance[t.slug] = { days, credits };
+      const backupBytes = await saveNightlyBackup(t.id).catch((e) => { console.error(`[cron] backup ${t.slug}`, e); return 0; });
+      attendance[t.slug] = { days, credits, backupBytes };
     } catch (e) {
       console.error(`[cron] attendance for ${t.slug}`, e);
       attendance[t.slug] = { error: (e as Error).message };

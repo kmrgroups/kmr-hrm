@@ -7,7 +7,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 
 type Mode = "password" | "otp" | "passkey";
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next, co = "" }: { next: string; co?: string }) {
   const [mode, setMode] = useState<Mode>("password");
   const [pwState, pwAction, pwPending] = useActionState<LoginState, FormData>(passwordLogin, {});
   const [otpState, otpAction, otpPending] = useActionState<LoginState, FormData>(sendOtp, {});
@@ -53,7 +53,7 @@ export function LoginForm({ next }: { next: string }) {
 
       {mode === "password" && (
         <form action={pwAction} className="stack">
-          <input type="hidden" name="next" value={next} />
+          <input type="hidden" name="next" value={next} /><input type="hidden" name="co" value={co} />
           <label className="field">Email<input name="email" type="email" autoComplete="username webauthn" placeholder="name@company.com" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
           <label className="field">Password<PasswordInput name="password" autoComplete="current-password" placeholder="Your password" required /></label>
           {pwState.error && <div className="alert error">{pwState.error}</div>}
@@ -64,7 +64,7 @@ export function LoginForm({ next }: { next: string }) {
 
       {mode === "otp" && (
         <form action={otpAction} className="stack">
-          <input type="hidden" name="next" value={next} />
+          <input type="hidden" name="next" value={next} /><input type="hidden" name="co" value={co} />
           <label className="field">Email
             <input name="email" type="email" autoComplete="username" required value={otpState.otpSentTo ?? email} onChange={(e) => setEmail(e.target.value)} readOnly={!!otpState.otpSentTo} />
           </label>

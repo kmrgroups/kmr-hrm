@@ -35,7 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </div>
           <h2>{greeting()}</h2>
           <p className="fz-sub">Sign in to continue to {brand.name}.</p>
-          <LoginForm next={next ?? ""} />
+          <LoginForm next={next ?? ""} co={tenant && co === tenant.slug ? co : ""} />
           <p className="fz-note">Secure sign-in · Need help? Contact your HR team</p>
         </div>
       </section>

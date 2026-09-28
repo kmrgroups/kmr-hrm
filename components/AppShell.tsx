@@ -7,6 +7,7 @@ import { Icon, type IconName } from "./Icon";
 import { Flash } from "./Flash";
 import { readFlash } from "@/lib/flash";
 import { p } from "@/lib/base-path";
+import { PortalBack } from "./PortalBack";
 
 interface NavItem { href: string; label: string; icon: IconName; show: boolean }
 
@@ -66,6 +67,7 @@ export async function AppShell({ session, active, children }: { session: Session
           <span>{logo ? "" : tenant.name}</span>
         </div>
         <nav>
+          <PortalBack />
           {render(main)}
           {settings.some((s) => s.show) && <div className="navlabel">Settings</div>}
           {render(settings)}
@@ -78,7 +80,13 @@ export async function AppShell({ session, active, children }: { session: Session
           <form action={signOut}><button>Sign out</button></form>
         </div>
       </aside>
-      <main className="main"><Flash msg={await readFlash()} />{children}</main>
+      <main className="main">
+        {process.env.HRM_DEMO_EMAIL && user.email === process.env.HRM_DEMO_EMAIL.toLowerCase() && (
+          <div className="alert info" style={{ marginBottom: 16, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <span><b>Sample data only.</b> You are exploring the HRM with a demo company — nothing here is saved for your company.</span>
+            <a className="btn small" href="/it/?buy=hrm#pilot">Use my company&apos;s data — buy subscription</a>
+          </div>
+        )}<Flash msg={await readFlash()} />{children}</main>
     </div>
   );
 }

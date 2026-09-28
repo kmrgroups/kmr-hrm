@@ -32,10 +32,8 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   if (!user && PROTECTED.some((p) => path === p || path.startsWith(p + "/"))) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", path);
-    return NextResponse.redirect(url);
+    // relative Location: stay on www.kmr-groups.com (see lib/redirect.ts)
+    return new NextResponse(null, { status: 307, headers: { Location: `${request.nextUrl.basePath}/login?next=${encodeURIComponent(path)}` } });
   }
   return response;
 }

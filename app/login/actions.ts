@@ -26,7 +26,7 @@ function safeNext(next: FormDataEntryValue | null): string | null {
  * After Supabase accepts the credentials: the person must have an active HRM login, their company's
  * licence must be valid, and on a company's own domain they must belong to that company.
  */
-async function finishLogin(next: string | null): Promise<LoginState> {
+async function finishLogin(next: string | null, co?: string | null): Promise<LoginState> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Sign-in failed. Please try again." };
@@ -42,6 +42,11 @@ async function finishLogin(next: string | null): Promise<LoginState> {
   }
   const tenant = await tenantById(appUser.tenant_id);
   if (!tenant) { await supabase.auth.signOut(); return { error: "Your company's HRM account is not active." }; }
+  // A customer's own link (?co=<company>) only admits that company's people
+  if (co && co !== tenant.slug && appUser.role !== "platform_admin") {
+    await supabase.auth.signOut();
+    return { error: "This login belongs to a different company. Use your own company's link." };
+  }
   const licence = await licenceFor(tenant.id);
   if (!licence.ok && appUser.role !== "platform_admin") {
     await supabase.auth.signOut();
@@ -59,7 +64,7 @@ export async function passwordLogin(_: LoginState, form: FormData): Promise<Logi
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: "Incorrect email or password." };
-  return finishLogin(safeNext(form.get("next")));
+  return finishLogin(safeNext(form.get("next")), String(form.get("co") || "") || null);
 }
 
 const CODE_MINUTES = 60;          // Supabase's default code lifetime (Authentication → Email OTP expiration)
@@ -79,7 +84,7 @@ export async function sendOtp(_: LoginState, form: FormData): Promise<LoginState
     let { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
     if (error) ({ error } = await supabase.auth.verifyOtp({ email, token: code, type: "magiclink" }));
     if (error) return { error: "That code is incorrect or has expired. Ask for a new one.", otpSentTo: email };
-    return finishLogin(safeNext(form.get("next")));
+    return finishLogin(safeNext(form.get("next")), String(form.get("co") || "") || null);
   }
 
   if (!email || !isValidEmail(email)) return { error: "Enter your registered email." };

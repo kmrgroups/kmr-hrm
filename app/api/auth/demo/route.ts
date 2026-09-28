@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { p } from "@/lib/base-path";
+import { redirectTo } from "@/lib/redirect";
 
 // "Try with sample data" from the KMR Apps portal: signs the visitor in to KMR's shared demo company
 // (the login in HRM_DEMO_EMAIL, loaded with DEMO_DATA.sql). Off unless HRM_DEMO_EMAIL is set.
 export async function GET(req: Request) {
-  const back = (path: string) => NextResponse.redirect(new URL(p(path), req.url), 303);
+  const back = (path: string) => redirectTo(path);
   const email = (process.env.HRM_DEMO_EMAIL || "").toLowerCase();
   if (!email) return back("/login?demo=off");
   const admin = createAdminClient();

@@ -9,6 +9,8 @@ import { saveCompany } from "./actions";
 export const metadata = { title: "Company & branding" };
 
 export default async function CompanySettings() {
+  // On the KMR platform the company's name, legal name and logo are managed in KMR Apps › Administration
+  const managed = (process.env.KMR_LICENCE_CHECK || "on").toLowerCase() !== "off";
   const session = await requireRole(ADMIN_ROLES);
   const t = session.tenant;
   const s = t.settings ?? {};
@@ -23,8 +25,8 @@ export default async function CompanySettings() {
         <div className="card">
           <h2>Company</h2>
           <div className="formgrid">
-            <label className="field"><span>Short name <span className="req">*</span></span><input name="name" defaultValue={t.name} required /><span className="help">e.g. DENO</span></label>
-            <label className="field">Legal name<input name="legal_name" defaultValue={t.legal_name ?? ""} /><span className="help">e.g. DENO Manufacturing and Solutions India Pvt Ltd</span></label>
+            <label className="field"><span>Short name <span className="req">*</span></span><input name="name" defaultValue={t.name} required readOnly={managed} /><span className="help">e.g. DENO</span></label>
+            <label className="field">Legal name<input name="legal_name" defaultValue={t.legal_name ?? ""} readOnly={managed} /><span className="help">e.g. DENO Manufacturing and Solutions India Pvt Ltd</span></label>
             <label className="field full">Address<textarea name="address" defaultValue={t.address ?? ""} /><span className="help">Printed on the back of ID cards</span></label>
             <label className="field">Phone<input name="phone" defaultValue={t.phone ?? ""} /></label>
             <label className="field">Email<input name="email" type="email" defaultValue={t.email ?? ""} /></label>
@@ -37,9 +39,10 @@ export default async function CompanySettings() {
           <div className="formgrid">
             <div className="field">Logo
               {logo ? <img src={logo} alt="" style={{ maxHeight: 60, maxWidth: 220, border: "1px solid var(--border)", borderRadius: 6, padding: 6, background: "#fff" }} /> : <span className="help">No logo yet</span>}
+              {managed ? <span className="help">The logo, company name and legal name come from <b>KMR Apps › Administration</b> and apply to all your KMR apps.</span> : <>
               <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" />
               <span className="help">PNG with transparent background works best. Max 2 MB.</span>
-              {logo && <label className="check" style={{ fontWeight: 400 }}><input type="checkbox" name="remove_logo" value="1" /> Remove logo</label>}
+              {logo && <label className="check" style={{ fontWeight: 400 }}><input type="checkbox" name="remove_logo" value="1" /> Remove logo</label>}</>}
             </div>
             <div className="row" style={{ alignItems: "flex-start", gap: 24 }}>
               <label className="field">Primary colour<input type="color" name="primary_color" defaultValue={t.primary_color} /></label>

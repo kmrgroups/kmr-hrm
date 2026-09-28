@@ -80,6 +80,7 @@ export async function requireTenant(): Promise<Tenant> {
 /** Public URL of the tenant's logo (branding bucket is public) */
 export function logoUrl(t: Pick<Tenant, "logo_path">): string | null {
   if (!t.logo_path) return null;
+  if (/^https?:\/\//.test(t.logo_path)) return t.logo_path;      // logo pushed from KMR Apps › Administration
   return `${env.supabaseUrl}/storage/v1/object/public/${BRANDING_BUCKET}/${t.logo_path}`;
 }
 

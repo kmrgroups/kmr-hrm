@@ -2,6 +2,7 @@ import { p } from "@/lib/base-path";
 import { requireRole, ADMIN_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
+import { PortalAdminLink } from "@/components/PortalAdminLink";
 import { ActionForm } from "@/components/ActionForm";
 import { fullName } from "@/components/ui";
 import { ROLE_LABELS, type Role } from "@/lib/types";
@@ -21,6 +22,7 @@ const ROLE_HELP: Partial<Record<Role, string>> = {
 };
 
 export default async function UsersPage() {
+  const managed = (process.env.KMR_LICENCE_CHECK || "on").toLowerCase() !== "off";
   const session = await requireRole(ADMIN_ROLES);
   const supabase = await createClient();
   const [{ data: users }, { data: employees }] = await Promise.all([
@@ -34,7 +36,14 @@ export default async function UsersPage() {
     <AppShell session={session} active="/app/settings/users">
       <div className="pagehead"><div><h1>Users &amp; roles</h1><p>{staff.length} staff users · {empCount} employee logins (created automatically at onboarding)</p></div></div>
 
-      <div className="card">
+      {managed && (
+        <div className="card" style={{ borderColor: "var(--accent)" }}>
+          <h2>Staff users are managed in KMR Apps</h2>
+          <p className="muted">Add HR staff, managers and payroll users — and choose their access in every KMR app — once under <b>KMR Apps › Administration › Users &amp; access</b>. Employee logins are still created automatically at onboarding.</p>
+          <PortalAdminLink label="Open Users & access" />
+        </div>
+      )}
+      {!managed && <div className="card">
         <h2>Add a staff user</h2>
         <ActionForm action={createUser} submitLabel="Create user and send login" resetOnSuccess>
           <div className="formgrid">
@@ -56,6 +65,7 @@ export default async function UsersPage() {
           </div>
         </ActionForm>
       </div>
+      }
 
       <div className="tablewrap" style={{ marginTop: 16 }}>
         <table>

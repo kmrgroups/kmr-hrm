@@ -125,6 +125,7 @@ export async function toggleMaster(form: FormData) {
 const STAFF_ROLES: Role[] = ["company_admin", "hr_manager", "hr_executive", "payroll", "manager", "interviewer"];
 
 export async function createUser(_: ActionState, form: FormData): Promise<ActionState> {
+  if ((process.env.KMR_LICENCE_CHECK || "on").toLowerCase() !== "off") return { error: "Staff users are managed in KMR Apps › Administration › Users & access." };
   try {
     const { user, tenant } = await assertRole(ADMIN_ROLES);
     const email = String(form.get("email") || "").trim().toLowerCase();

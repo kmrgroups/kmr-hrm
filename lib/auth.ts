@@ -59,6 +59,10 @@ export async function assertRole(roles: Role[]): Promise<Session> {
   const s = await getSession();
   if (!s) throw new Error("Please sign in again.");
   if (!hasRole(s.user, roles)) throw new Error("You do not have permission for this action.");
+  // Sample-data demo (portal "Try with sample data"): explore only — real work needs a subscription
+  if (process.env.HRM_DEMO_EMAIL && s.user.email === process.env.HRM_DEMO_EMAIL.toLowerCase()) {
+    throw new Error("Sample data only — take a subscription to work with your company's own data: www.kmr-groups.com/it/?buy=hrm");
+  }
   if (s.user.role !== "platform_admin") {
     const l = await licenceFor(s.tenant.id);
     if (!l.ok) throw new Error(`${l.message} Please contact KMR Group of Companies.`);

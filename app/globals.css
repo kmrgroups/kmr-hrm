@@ -342,3 +342,11 @@ input.invalid, select.invalid { border-color: var(--danger); background: #fffafa
 .powered-by { display: flex !important; align-items: center; justify-content: space-between; gap: 12px; padding-left: 14px; padding-right: 14px; }
 .powered-by .kmr-back-slot { flex: 1 1 0; min-width: 0; display: flex; }
 .kmr-back-link { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; background: linear-gradient(90deg, #7C3AED, #DB2777); color: #fff !important; font-weight: 700; font-size: 12.5px; text-decoration: none !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* standard KMR tool header in the sidebar: logo · tool name · company name */
+.brand.kmr-tool-head { display: flex; align-items: center; gap: 12px; }
+.brand.kmr-tool-head img { width: 46px; height: 46px; object-fit: contain; background: #fff; border-radius: 10px; padding: 3px; flex: none; max-width: none; }
+.kmr-tool-initials { width: 46px; height: 46px; border-radius: 10px; display: grid; place-items: center; background: #fff; color: var(--brand); font-weight: 800; flex: none; }
+.kmr-tool-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.kmr-tool-text b { color: #fff; font-size: 16px; }
+.kmr-tool-text small { color: rgba(255,255,255,.72); font-size: 12.5px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

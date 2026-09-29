@@ -62,9 +62,10 @@ export async function AppShell({ session, active, children }: { session: Session
         <label htmlFor="navtoggle" aria-label="Menu">☰</label>
       </div>
       <aside className="sidebar">
-        <div className="brand">
-          {logo ? <img src={logo} alt="" /> : null}
-          <span>{logo ? "" : tenant.name}</span>
+        {/* standard KMR tool header: logo · tool name · company name (same as every KMR tool) */}
+        <div className="brand kmr-tool-head">
+          {logo ? <img src={logo} alt="" /> : <span className="kmr-tool-initials">{tenant.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("")}</span>}
+          <div className="kmr-tool-text"><b>HRM Suite</b><small>{tenant.name}</small></div>
         </div>
         <nav>
           {render(main)}

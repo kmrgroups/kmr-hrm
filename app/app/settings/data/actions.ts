@@ -15,10 +15,11 @@ export async function loadSampleData(_: ActionState): Promise<ActionState> {
     const { user, tenant } = await assertRole(["hr_manager"]);
     const { data, error } = await createAdminClient().rpc("demo_load", { p_tenant: tenant.id });
     if (error) return { error: error.message };
+    await createAdminClient().rpc("demo_payroll", { p_tenant: tenant.id });   // sample salaries and two loans
     await recomputeAttendance(tenant.id, "all", addDays(istToday(), -31), addDays(istToday(), -1));
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "data.sample_loaded", entity: "tenants", entityId: tenant.id });
     revalidatePath("/app", "layout");
-    return { ok: `Sample data loaded: ${data} employees in two plants with a month of attendance, leave balances and pending requests.` };
+    return { ok: `Sample data loaded: ${data} employees in two plants with a month of attendance, leave balances, pending requests, salaries and two loans — try Payroll next.` };
   } catch (e) { return fail(e); }
 }
 

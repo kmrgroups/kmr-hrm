@@ -76,3 +76,9 @@ Dear {{1}}, your {{2}} ID card ({{3}}) is ready. View it here: {{4}}
 If Meta rejects a template (for example because a variable is at the very start or end),
 adjust the wording, keep the variable order, and update the template name under
 **Settings → Message templates** in the app if you changed it.
+
+## hrm_payslip_ready (Utility)
+
+> Dear {{1}}, your payslip for {{2}} is ready. Net pay: {{3}}. See and download it here: {{4}}
+
+Parameters: name, month, net pay, link to My payslips. (Payslips are emailed with the PDF attached; WhatsApp is optional.)

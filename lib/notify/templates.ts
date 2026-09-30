@@ -21,7 +21,8 @@ export type NotificationEvent =
   | "leave_decided"
   | "regularisation_applied"
   | "regularisation_decided"
-  | "login_code";
+  | "login_code"
+  | "payslip_ready";
 
 export interface MessageTemplate {
   subject: string;
@@ -44,10 +45,11 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   regularisation_applied: "Attendance correction request (to approver)",
   regularisation_decided: "Attendance correction approved / rejected (to employee)",
   login_code: "Sign-in code",
+  payslip_ready: "Payslip for the month (with PDF)",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
-export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code"];
+export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -292,5 +294,26 @@ Human Resources, {{company}}`,
     whatsapp: `{{otp}} is your {{company}} HR portal sign-in code. It expires in {{minutes}} minutes. Do not share it with anyone.`,
     wa_template: "hrm_login_code",
     wa_params: ["otp", "company", "minutes"],
+  },
+  payslip_ready: {
+    subject: "Your payslip for {{month}} — {{company}}",
+    email: `Dear {{name}},
+
+Your payslip for {{month}} is attached. Net pay: {{net_pay}}.
+
+You can also see and download all your payslips any time in the HR portal.
+
+[[My payslips|{{link}}]]
+
+If anything looks wrong, please reply to this email.
+
+Payroll, {{company}}`,
+    whatsapp: `Dear {{name}}, your payslip for {{month}} is ready. Net pay: {{net_pay}}.
+
+[[My payslips|{{link}}]]
+
+— Payroll, {{company}}`,
+    wa_template: "hrm_payslip_ready",
+    wa_params: ["name", "month", "net_pay", "link"],
   },
 };

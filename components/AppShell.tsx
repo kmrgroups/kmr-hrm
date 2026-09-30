@@ -22,6 +22,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/employees", label: "Employees", icon: "users", show: staff },
     { href: "/app/attendance", label: "Attendance", icon: "clock", show: staff },
     { href: "/app/leave", label: "Leave", icon: "calendar", show: hr || hasRole(user, ["payroll"]) },
+    { href: "/app/payroll", label: "Payroll", icon: "card", show: hasRole(user, ["hr_manager", "payroll"]) },
     { href: "/app/approvals", label: "Approvals", icon: "checklist", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/onboarding", label: "Onboarding", icon: "inbox", show: hr },
     { href: "/app/id-cards", label: "ID cards", icon: "card", show: hr },
@@ -42,6 +43,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/me", label: "My portal", icon: "user", show: !!user.employee_id },
     { href: "/me/attendance", label: "My attendance", icon: "clock", show: !!user.employee_id },
     { href: "/me/leave", label: "My leave", icon: "calendar", show: !!user.employee_id },
+    { href: "/me/payslips", label: "My payslips", icon: "download", show: !!user.employee_id },
     { href: "/account", label: "My account", icon: "key", show: !platform },
     { href: "/help", label: "Help & support", icon: "inbox", show: true },
   ];

@@ -10,6 +10,7 @@ import { IdCardPreview } from "@/components/IdCardPreview";
 import { Avatar, fullName, fmtDate, one } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { DOCUMENT_TYPES, type OnboardingProfile } from "@/lib/types";
+import { istToday, monthBounds } from "@/lib/attendance/time";
 
 export const metadata = { title: "My portal" };
 
@@ -28,6 +29,21 @@ export default async function MyPortal() {
     supabase.from("id_cards").select("valid_until,issued_at").eq("employee_id", id).eq("status", "active").maybeSingle(),
   ]);
   if (!emp) redirect("/login");
+
+  // "Live salary": what has been earned so far this month from attendance (own salary and attendance only)
+  const today = istToday(), mb = monthBounds(today.slice(0, 7));
+  const [{ data: sal }, { data: att }] = await Promise.all([
+    supabase.from("salary_structures").select("monthly_gross,effective_from").eq("employee_id", id).lte("effective_from", today).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("attendance_days").select("work_date,absent_days").eq("employee_id", id).gte("work_date", mb.from).lte("work_date", today),
+  ]);
+  let live: { earned: number; paid: number; upto: number; total: number } | null = null;
+  if (sal) {
+    const seen = new Set((att ?? []).map((a) => a.work_date));
+    const upto = mb.days.filter((d) => d <= today && (!emp.date_of_joining || d >= emp.date_of_joining));
+    const lop = (att ?? []).reduce((s, a) => s + Number(a.absent_days), 0) + upto.filter((d) => d < today && !seen.has(d)).length;
+    const paid = Math.max(0, upto.length - lop);
+    live = { earned: Math.round((Number(sal.monthly_gross) * paid) / mb.days.length), paid, upto: upto.length, total: Number(sal.monthly_gross) };
+  }
 
   const urls = await signedDocUrls([emp.photo_path, ...(docs ?? []).map((d) => d.file_path)].filter(Boolean) as string[], 900);
   const name = fullName(emp);
@@ -55,6 +71,13 @@ export default async function MyPortal() {
         </div>
       </div>
 
+      {live && (
+        <div className="card stat" style={{ marginBottom: 16 }}>
+          <div className="spread"><div className="label">Salary earned so far this month</div><a className="btn secondary small" href={p("/me/payslips")}>My payslips</a></div>
+          <div className="value">₹{live.earned.toLocaleString("en-IN")}</div>
+          <div className="hint">{live.paid} paid day{live.paid === 1 ? "" : "s"} of {live.upto} so far · monthly gross ₹{live.total.toLocaleString("en-IN")} · before PF, ESI and other deductions</div>
+        </div>
+      )}
       <div className="grid three">
         <div className="card stat"><div className="label">Date of joining</div><div className="value" style={{ fontSize: "1.25rem" }}>{fmtDate(emp.date_of_joining)}</div><div className="hint">{emp.date_of_joining && new Date(emp.date_of_joining) > new Date() ? "Joining soon" : tenure !== null ? `${tenure} years of service` : ""}</div></div>
         <div className="card stat"><div className="label">Reporting manager</div><div className="value" style={{ fontSize: "1.25rem" }}>{mgr ? fullName(mgr) : "—"}</div><div className="hint">{plant ?? ""}</div></div>

@@ -34,6 +34,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/settings/leave", label: "Leave policy", icon: "calendar", show: hr },
     { href: "/app/settings/data", label: "Data & backups", icon: "download", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/settings/users", label: "Users & roles", icon: "shield", show: !platform && admin },
+    { href: "/app/settings/email", label: "Company email", icon: "send", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/settings/templates", label: "Message templates", icon: "mail", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/audit", label: "Audit trail", icon: "list", show: hasRole(user, ["hr_manager"]) },
   ];

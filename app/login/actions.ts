@@ -6,10 +6,10 @@ import { licenceFor } from "@/lib/licence";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notify } from "@/lib/notify";
-import { env } from "@/lib/env";
 import { isValidEmail } from "@/lib/validators";
 import { homeFor } from "@/lib/auth";
 import type { AppUser } from "@/lib/types";
+import { getMailbox } from "@/lib/company-mail";
 
 export interface LoginState {
   error?: string;
@@ -103,7 +103,8 @@ export async function sendOtp(_: LoginState, form: FormData): Promise<LoginState
     .eq("event", "login_code").eq("recipient", email).gte("created_at", new Date(Date.now() - 10 * 6e4).toISOString());
   if ((count ?? 0) >= MAX_CODES) return { error: "Too many codes requested. Please wait 10 minutes, or sign in with your password.", otpSentTo: email };
 
-  if (!env.resendKey) {
+  // Company mailbox not connected yet → Supabase sends its standard sign-in code email instead
+  if (!(await getMailbox(tenant.id))) {
     const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
     if (error) return { error: /rate|seconds/i.test(error.message) ? "Please wait a minute before asking for another code." : "Could not send the code right now. Please try again in a minute." };
     return sent;

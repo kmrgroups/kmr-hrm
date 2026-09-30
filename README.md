@@ -77,7 +77,7 @@ Follow **docs/SETUP_GUIDE.md**. A new Supabase project needs just one file: `sup
 | `DEFAULT_TENANT_SLUG` | Only for single-company or preview deployments. **Leave empty in production multi-company deployments.** |
 | `APP_SECRET` | Any random 32+ character string (`openssl rand -base64 48`) |
 | `CRON_SECRET` | Random string; Vercel sends it to the daily reminder job |
-| `RESEND_API_KEY`, `EMAIL_FROM` | [resend.com](https://resend.com) — verify your sending domain first |
+| *(no email key)* | Each customer company connects **its own mailbox** in HRM › Settings › Company email (Gmail / Google Workspace, Microsoft 365, Zoho, GoDaddy, Hostinger or any SMTP server). HR emails go out only from that mailbox — never from a KMR address. Until it is connected, emails are not sent (WhatsApp and the portal still work). The password is stored encrypted with `APP_SECRET` — keep `APP_SECRET` unchanged, or companies must re-enter it. Run `supabase/migrations/0004_company_email.sql`. |
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Meta Business → WhatsApp → API setup (use a permanent System User token) |
 | `WHATSAPP_MODE` | `template` in production (see `docs/whatsapp-templates.md`) |
 

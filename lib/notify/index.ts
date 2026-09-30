@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
+import { sendFromCompany } from "@/lib/company-mail";
 import { logoUrl } from "@/lib/tenant";
 import { toWhatsAppNumber, isValidEmail } from "@/lib/validators";
 import type { Tenant } from "@/lib/types";
@@ -50,26 +51,12 @@ async function loadTemplate(tenantId: string, event: NotificationEvent): Promise
   };
 }
 
+/** HR emails go out from the customer company's own mailbox (Settings › Company email) — never from KMR's address. */
 async function sendEmail(tenant: Tenant, to: string, subject: string, html: string, text: string, attachments?: NotifyOptions["attachments"]) {
-  if (!env.resendKey) return { status: "skipped" as const, error: "RESEND_API_KEY not set" };
-  const fromAddress = tenant.settings?.email_from || env.emailFrom;
-  if (!fromAddress) return { status: "skipped" as const, error: "No sender address configured" };
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${env.resendKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: `${tenant.name} <${fromAddress}>`,
-      to: [to],
-      subject,
-      html,
-      text,
-      reply_to: tenant.settings?.email_reply_to || tenant.email || undefined,
-      attachments: attachments?.map((a) => ({ filename: a.filename, content: Buffer.from(a.content).toString("base64") })),
-    }),
+  return sendFromCompany(tenant.id, {
+    to, subject, html, text, attachments, fromName: tenant.name,
+    replyTo: tenant.settings?.email_reply_to || tenant.settings?.hr_notify_email || tenant.email || null,
   });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) return { status: "failed" as const, error: body?.message || `HTTP ${res.status}` };
-  return { status: "sent" as const, providerId: body?.id as string | undefined };
 }
 
 async function sendWhatsApp(to: string, tpl: MessageTemplate, vars: Vars) {

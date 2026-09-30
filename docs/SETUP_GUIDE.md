@@ -39,10 +39,9 @@ Project connected to `kmrgroups/kmr-groups-it` with the domain `hrm.kmr-groups.c
 | `APP_PUBLIC_URL` | `https://hrm.kmr-groups.com` |
 | `APP_SECRET` | any long random text, 40+ characters |
 | `CRON_SECRET` | another long random text |
-| `RESEND_API_KEY` | from Resend |
-| `EMAIL_FROM` | `hr@kmr-groups.com` (on the verified domain) |
 
 Leave `NEXT_PUBLIC_BASE_PATH` and `APP_ROOT_DOMAIN` **unset** for hrm.kmr-groups.com.
+No email key is needed: each company connects its own mailbox in **Settings › Company email** (run `supabase/migrations/0004_company_email.sql` once).
 Optional: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` for WhatsApp messages.
 
 Only one Vercel project should be connected to this repository — delete any extra ones

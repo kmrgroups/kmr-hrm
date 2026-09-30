@@ -2,6 +2,7 @@ import { requireRole, ADMIN_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { logoUrl } from "@/lib/tenant";
 import { env } from "@/lib/env";
+import { p } from "@/lib/base-path";
 import { AppShell } from "@/components/AppShell";
 import { ActionForm } from "@/components/ActionForm";
 import { saveCompany } from "./actions";
@@ -66,7 +67,7 @@ export default async function CompanySettings() {
         <div className="card">
           <h2>Notifications</h2>
           <div className="formgrid">
-            <label className="field">Send emails from<input name="email_from" defaultValue={s.email_from ?? ""} placeholder={env.emailFrom || "hr@yourcompany.com"} /><span className="help">Must be a domain verified in Resend. Blank = platform default.</span></label>
+            <div className="field full">Sending emails<span className="help">HR emails go out from your own company mailbox — set it up in <a href={p("/app/settings/email")}>Settings › Company email</a>.</span></div>
             <label className="field">Reply-to email<input name="email_reply_to" defaultValue={s.email_reply_to ?? ""} /></label>
             <label className="field">HR alert email<input name="hr_notify_email" defaultValue={s.hr_notify_email ?? ""} /><span className="help">Gets &ldquo;onboarding submitted&rdquo; alerts. Blank = all HR managers.</span></label>
             <label className="field">HR alert WhatsApp<input name="hr_notify_phone" defaultValue={s.hr_notify_phone ?? ""} /></label>

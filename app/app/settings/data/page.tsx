@@ -1,38 +1,24 @@
 import { p } from "@/lib/base-path";
 import { requireRole } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { listBackups, KEEP_DAYS } from "@/lib/data-tools";
 import { AppShell } from "@/components/AppShell";
 import { ActionForm } from "@/components/ActionForm";
 import { AutoBackupToggle } from "@/components/AutoBackup";
 import { Empty, fmtDate } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { flushSampleData, importCompanyJson, loadSampleData } from "./actions";
+import { importCompanyJson } from "./actions";
 
 export const metadata = { title: "Data & backups" };
 
 export default async function DataPage() {
   const session = await requireRole(["hr_manager"]);
   const t = session.tenant;
-  const [backups, { count: sample }] = await Promise.all([
-    listBackups(t.id),
-    createAdminClient().from("employees").select("id", { count: "exact", head: true }).eq("tenant_id", t.id).like("email", "%@demo.kmr.test"),
-  ]);
+  const backups = await listBackups(t.id);
   return (
     <AppShell session={session} active="/app/settings/data">
-      <div className="pagehead"><div><h1>Data &amp; backups</h1><p>Sample data for trying the system, a JSON copy of all your data, and the automatic nightly backups.</p></div></div>
+      <div className="pagehead"><div><h1>Data &amp; backups</h1><p>A JSON copy of all your data, and the automatic nightly backups.</p></div></div>
 
       <div className="grid two">
-        <div className="card">
-          <h2>Sample data</h2>
-          <p className="muted">24 sample employees in two plants, a month of biometric attendance, leave balances and pending requests — to explore every screen. Sample records are marked and removed completely by <b>Flush</b>; your real data is never touched.</p>
-          <p><span className={`badge ${sample ? "info" : ""}`}>{sample ? `${sample} sample employees loaded` : "No sample data loaded"}</span></p>
-          <div className="row" style={{ gap: 10 }}>
-            <ActionForm action={loadSampleData} submitLabel="Load sample data" pendingLabel="Loading…" />
-            <ActionForm action={flushSampleData} submitLabel="Flush sample data" variant="secondary" pendingLabel="Removing…" confirm="Remove all sample employees and everything linked to them?" />
-          </div>
-        </div>
-
         <div className="card">
           <h2>JSON download &amp; upload</h2>
           <p className="muted">Download everything — company settings, employees, documents list, attendance, leave and ID cards — as one JSON file. Uploading a file from this company restores it (logins are kept).</p>

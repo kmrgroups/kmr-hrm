@@ -3,36 +3,11 @@ import { revalidatePath } from "next/cache";
 import { assertRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import { recomputeAttendance } from "@/lib/attendance/service";
-import { addDays, istToday } from "@/lib/attendance/time";
+import { istToday } from "@/lib/attendance/time";
 import { saveNightlyBackup } from "@/lib/data-tools";
 import type { ActionState } from "@/app/app/employees/actions";
 
 const fail = (e: unknown): ActionState => ({ error: (e as Error).message });
-
-export async function loadSampleData(_: ActionState): Promise<ActionState> {
-  try {
-    const { user, tenant } = await assertRole(["hr_manager"]);
-    const { data, error } = await createAdminClient().rpc("demo_load", { p_tenant: tenant.id });
-    if (error) return { error: error.message };
-    await createAdminClient().rpc("demo_payroll", { p_tenant: tenant.id });   // sample salaries and two loans
-    await recomputeAttendance(tenant.id, "all", addDays(istToday(), -31), addDays(istToday(), -1));
-    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "data.sample_loaded", entity: "tenants", entityId: tenant.id });
-    revalidatePath("/app", "layout");
-    return { ok: `Sample data loaded: ${data} employees in two plants with a month of attendance, leave balances, pending requests, salaries and two loans — try Payroll next.` };
-  } catch (e) { return fail(e); }
-}
-
-export async function flushSampleData(_: ActionState): Promise<ActionState> {
-  try {
-    const { user, tenant } = await assertRole(["hr_manager"]);
-    const { data, error } = await createAdminClient().rpc("demo_flush", { p_tenant: tenant.id });
-    if (error) return { error: error.message };
-    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "data.sample_flushed", entity: "tenants", entityId: tenant.id });
-    revalidatePath("/app", "layout");
-    return { ok: `Sample data removed (${data} sample employees and everything linked to them). Your real data is untouched.` };
-  } catch (e) { return fail(e); }
-}
 
 export async function importCompanyJson(_: ActionState, form: FormData): Promise<ActionState> {
   try {

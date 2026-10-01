@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const dept = url.searchParams.get("dept"), desig = url.searchParams.get("desig"), emps = url.searchParams.getAll("emp").filter(isId);
   const db = await createClient();
-  let q = db.from("employees").select("id,first_name,last_name,employee_code,designation_id,department_id,date_of_joining,designation:designations(name),department:departments(name),plant:plants(name)")
+  let q = db.from("employees").select("id,first_name,last_name,employee_code,designation_id,department_id,position_id,date_of_joining,designation:designations(name),department:departments(name),plant:plants(name)")
     .in("status", ["active"]).order("first_name");
   if (emps.length) q = q.in("id", emps);
   if (isId(dept)) q = q.eq("department_id", dept);
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const [st, comps, req2, ec, ops, sl, att, eff, ojt, auds, audits, rr, acks, needs] = await Promise.all([
     db.from("qms_settings").select("quality_policy,objectives").maybeSingle().then((r) => r.data),
     db.from("competencies").select("id,name").then((r) => r.data ?? []),
-    db.from("role_competencies").select("designation_id,competency_id,required_level").then((r) => r.data ?? []),
+    db.from("role_competencies").select("position_id,competency_id,required_level").not("position_id", "is", null).then((r) => r.data ?? []),
     fetchAll<{ employee_id: string; competency_id: string; level: number; assessed_on: string; assessed_by_name: string | null }>((a, b) => db.from("employee_competencies").select("employee_id,competency_id,level,assessed_on,assessed_by_name").in("employee_id", ids).range(a, b)),
     db.from("operations").select("id,line,code,name").then((r) => r.data ?? []),
     fetchAll<{ employee_id: string; operation_id: string; level: number; certified_on: string | null; valid_until: string | null }>((a, b) => db.from("skill_levels").select("employee_id,operation_id,level,certified_on,valid_until").in("employee_id", ids).range(a, b)),
@@ -42,20 +42,20 @@ export async function GET(req: Request) {
     db.from("ojt_records").select("employee_id,status,done,completed_on,signed_off_name,template:ojt_templates(title,items)").in("employee_id", ids).then((r) => r.data ?? []),
     db.from("auditors").select("id,employee_id,kind,qualification,valid_until").in("employee_id", ids).eq("active", true).then((r) => r.data ?? []),
     db.from("auditor_audits").select("auditor_id,audit_date").gte("audit_date", addDaysIso(today, -365)).then((r) => r.data ?? []),
-    db.from("rr_roles").select("id,designation_id,department_id,version").eq("status", "approved").then((r) => r.data ?? []),
+    db.from("rr_roles").select("id,position_id,version").eq("status", "approved").not("position_id", "is", null).then((r) => r.data ?? []),
     db.from("rr_acks").select("rr_id,employee_id,version,acknowledged_at").in("employee_id", ids).then((r) => r.data ?? []),
     db.from("training_needs").select("employee_id,topic,source,status").in("employee_id", ids).in("status", ["open", "planned"]).then((r) => r.data ?? []),
   ]);
 
   const people: PackPerson[] = ppl.map((e) => {
-    const role = rr.find((x) => x.designation_id === e.designation_id && x.department_id === e.department_id) ?? rr.find((x) => x.designation_id === e.designation_id && !x.department_id);
+    const role = rr.find((x) => x.position_id === e.position_id);
     const ack = role ? acks.find((a) => a.rr_id === role.id && a.employee_id === e.id && a.version === role.version) : null;
     const aud = auds.find((a) => a.employee_id === e.id);
     return {
       name: fullName(e), code: e.employee_code, designation: one(e.designation as unknown as { name: string } | null)?.name ?? null, department: one(e.department as unknown as { name: string } | null)?.name ?? null,
       plant: one(e.plant as unknown as { name: string } | null)?.name ?? null, joined: e.date_of_joining,
       rr: role ? { version: role.version, acknowledged: ack?.acknowledged_at ?? null } : null,
-      competencies: req2.filter((r) => r.designation_id === e.designation_id).map((r) => { const a = ec.find((x) => x.employee_id === e.id && x.competency_id === r.competency_id);
+      competencies: req2.filter((r) => r.position_id === e.position_id).map((r) => { const a = ec.find((x) => x.employee_id === e.id && x.competency_id === r.competency_id);
         return { name: comps.find((c) => c.id === r.competency_id)?.name ?? "-", required: r.required_level, actual: a?.level ?? 0, assessed: a?.assessed_on ?? null, by: a?.assessed_by_name ?? null }; }),
       skills: sl.filter((x) => x.employee_id === e.id).map((x) => { const o = ops.find((y) => y.id === x.operation_id); return { op: o ? `${o.line} - ${o.code} ${o.name}` : "-", level: x.level, certified: x.certified_on, valid: x.valid_until }; }),
       training: att.filter((a) => a.employee_id === e.id).map((a) => {

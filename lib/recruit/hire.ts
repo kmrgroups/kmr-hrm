@@ -19,7 +19,7 @@ export async function hireFromOffer(tenant: Tenant, offerId: string, acceptedNam
   if (!o) throw new Error("Offer not found");
   const app = Array.isArray(o.application) ? o.application[0] : o.application;
   const cand = Array.isArray(app?.candidate) ? app.candidate[0] : app?.candidate;
-  const { data: req } = await db.from("requisitions").select("title").eq("id", app.requisition_id).maybeSingle();
+  const { data: req } = await db.from("requisitions").select("title,position_id").eq("id", app.requisition_id).maybeSingle();
   const now = new Date().toISOString();
   await db.from("offers").update({ status: "accepted", responded_at: now, accepted_name: acceptedName.slice(0, 120) }).eq("id", offerId);
   await db.from("applications").update({ status: "joined" }).eq("id", app.id);
@@ -28,7 +28,10 @@ export async function hireFromOffer(tenant: Tenant, offerId: string, acceptedNam
   try {
     // the same person already on the company's books (e.g. rejoining): reuse that record
     const { data: same } = cand?.email ? await db.from("employees").select("id,status").eq("tenant_id", tenant.id).eq("email", cand.email).maybeSingle() : { data: null };
-    if (same && same.status !== "exited") { employeeId = same.id; note = "This person is already an employee record; the offer was linked to it."; }
+    if (same && same.status !== "exited") {
+      employeeId = same.id; note = "This person is already an employee record; the offer was linked to it.";
+      if (req?.position_id) await db.from("employees").update({ position_id: req.position_id }).eq("id", same.id).is("position_id", null);
+    }
     else {
       await assertSeat(tenant.id);
       const parts = String(cand?.full_name || acceptedName).trim().split(/\s+/);
@@ -37,7 +40,7 @@ export async function hireFromOffer(tenant: Tenant, offerId: string, acceptedNam
       const { data: emp, error } = await db.from("employees").insert({
         tenant_id: tenant.id, status: "invited", first_name: first.slice(0, 60), last_name: last?.slice(0, 60) ?? null,
         email: cand?.email ?? null, mobile: normalizeIndianMobile(cand?.phone ?? "") ?? cand?.phone ?? null,
-        designation_id: o.designation_id, department_id: o.department_id, plant_id: o.plant_id, reporting_manager_id: o.reporting_manager_id,
+        designation_id: o.designation_id, department_id: o.department_id, plant_id: o.plant_id, reporting_manager_id: o.reporting_manager_id, position_id: req?.position_id ?? null,
         employment_type: o.employment_type, category: o.category, date_of_joining: o.date_of_joining, created_by: o.created_by,
       }).select("id").single();
       if (error) throw new Error(error.message);

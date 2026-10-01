@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/ActionForm";
 import { Empty, fmtDate } from "@/components/ui";
 import { istToday } from "@/lib/attendance/time";
 import { fmtWhen } from "@/lib/recruit/format";
+import { FREQUENCIES } from "@/lib/qms/kpi-catalog";
 import { SKILL_LEVELS, COMP_LEVELS, EFF_RESULTS, NEED_STATUS, addMonths, kpiAchievement } from "@/lib/qms/rules";
 import { LevelPie, monthLabel } from "@/app/app/qms/ui";
 import { ackAwareness, ackRr } from "@/app/app/qms/actions";
@@ -19,20 +20,20 @@ export default async function MyDevelopment() {
   if (!emp) redirect(homeFor(session.user));
   const db = await createClient();
   const today = istToday();
-  const { data: me } = await db.from("employees").select("designation_id,department_id,designation:designations(name)").eq("id", emp).single();
+  const { data: me } = await db.from("employees").select("designation_id,department_id,position_id,designation:designations(name),position:positions(title,role)").eq("id", emp).single();
   const [{ data: rrs }, { data: acks }, { data: st }, { data: att }, { data: skills }, { data: comps }, { data: req }, { data: needs }, { data: kpis }, { data: vals }] = await Promise.all([
-    db.from("rr_roles").select("*").eq("status", "approved").eq("designation_id", me?.designation_id ?? "00000000-0000-0000-0000-000000000000"),
+    db.from("rr_roles").select("*").eq("status", "approved").eq("position_id", me?.position_id ?? "00000000-0000-0000-0000-000000000000"),
     db.from("rr_acks").select("rr_id,version,acknowledged_at").eq("employee_id", emp),
     db.from("qms_settings").select("quality_policy,objectives,csr").maybeSingle(),
     db.from("training_attendance").select("id,attended,acknowledged_at,post_score,session:training_sessions(starts_at,plan_month,status,venue,program:training_programs(title,eval_method,duration_hours)),effectiveness:training_effectiveness(result)").eq("employee_id", emp),
     db.from("skill_levels").select("level,valid_until,operation:operations(line,code,name)").eq("employee_id", emp),
     db.from("employee_competencies").select("competency_id,level").eq("employee_id", emp),
-    db.from("role_competencies").select("competency_id,required_level,competency:competencies(name)").eq("designation_id", me?.designation_id ?? "00000000-0000-0000-0000-000000000000"),
+    db.from("role_competencies").select("competency_id,required_level,competency:competencies(name)").eq("position_id", me?.position_id ?? "00000000-0000-0000-0000-000000000000"),
     db.from("training_needs").select("topic,status,target_month").eq("employee_id", emp).in("status", ["open", "planned"]),
-    db.from("kpis").select("id,name,unit,target,direction").eq("active", true).eq("designation_id", me?.designation_id ?? "00000000-0000-0000-0000-000000000000"),
+    db.from("kpis").select("id,name,unit,target,direction,frequency,review_method").eq("active", true).eq("position_id", me?.position_id ?? "00000000-0000-0000-0000-000000000000").order("sort_order"),
     db.from("kpi_values").select("kpi_id,month,actual").eq("employee_id", emp).gte("month", addMonths(today.slice(0, 7), -3)),
   ]);
-  const rr = (rrs ?? []).find((r) => r.department_id === me?.department_id) ?? (rrs ?? []).find((r) => !r.department_id);
+  const rr = (rrs ?? [])[0];
   const acked = rr && (acks ?? []).some((a) => a.rr_id === rr.id && a.version === rr.version);
   const rows = (att ?? []).map((a) => { const s = one(a.session as unknown as { starts_at: string | null; plan_month: string; status: string; venue: string | null; program: unknown } | null);
     return { ...a, s, pr: one(s?.program as unknown as { title: string; eval_method: string; duration_hours: number } | null), eff: one(a.effectiveness as unknown as { result: string | null } | null) }; });
@@ -40,7 +41,8 @@ export default async function MyDevelopment() {
   const upcoming = rows.filter((r) => r.s && (r.s.status === "scheduled" || r.s.status === "planned")).sort((a, b) => (a.s!.starts_at ?? "z").localeCompare(b.s!.starts_at ?? "z"));
   const done = rows.filter((r) => r.s?.status === "done" && r.attended).sort((a, b) => (b.s!.starts_at ?? "").localeCompare(a.s!.starts_at ?? ""));
   const lvl = (c: string) => (comps ?? []).find((x) => x.competency_id === c)?.level ?? 0;
-  const desig = one(me?.designation as unknown as { name: string } | null)?.name;
+  const position = one(me?.position as unknown as { title: string; role: string | null } | null);
+  const desig = position ? `${position.title}${position.role ? ` (${position.role})` : ""}` : one(me?.designation as unknown as { name: string } | null)?.name;
 
   return (
     <AppShell session={session} active="/me/development">
@@ -51,7 +53,8 @@ export default async function MyDevelopment() {
           <h2>Please read and sign</h2>
           {rr && !acked && (
             <div style={{ marginBottom: 16 }}>
-              <h3 style={{ marginTop: 0 }}>Your roles &amp; responsibilities (version {rr.version})</h3>
+              <h3 style={{ marginTop: 0 }}>Roles, responsibilities &amp; authority of your position (version {rr.version})</h3>
+              {rr.roles?.length > 0 && <p><b>Roles:</b> {rr.roles.join(", ")}</p>}
               {rr.purpose && <p><b>Purpose:</b> {rr.purpose}</p>}
               <b>Responsibilities</b><ul>{rr.responsibilities.map((x: string) => <li key={x}>{x}</li>)}</ul>
               {rr.authorities.length > 0 && <><b>Your authority</b><ul>{rr.authorities.map((x: string) => <li key={x}>{x}</li>)}</ul></>}
@@ -70,8 +73,8 @@ export default async function MyDevelopment() {
 
       <div className="grid two">
         <div className="card">
-          <h2>What my role needs</h2>
-          {!(req ?? []).length ? <Empty>No competencies set for your role yet.</Empty> : (
+          <h2>What my position needs</h2>
+          {!(req ?? []).length ? <Empty>No position given to you yet, or its competencies are not set.</Empty> : (
             <table><tbody>{(req ?? []).map((r) => { const l = lvl(r.competency_id); return (
               <tr key={r.competency_id}><td>{one(r.competency as unknown as { name: string } | null)?.name}</td>
                 <td className="num"><span className={`badge ${l >= r.required_level ? "ok" : "warn"}`} title={`${COMP_LEVELS[l]} — the role needs ${COMP_LEVELS[r.required_level]}`}>{l} of {r.required_level}</span></td></tr>); })}</tbody></table>)}
@@ -106,11 +109,11 @@ export default async function MyDevelopment() {
         <div className="card">
           <h2>My KPIs</h2>
           <div className="tablewrap" style={{ border: 0 }}><table>
-            <thead><tr><th>KPI</th><th className="num">Target</th>{[3, 2, 1].map((k) => <th key={k} className="num">{monthLabel(addMonths(today.slice(0, 7), -k))}</th>)}</tr></thead>
+            <thead><tr><th>KPI</th><th className="num">Target</th><th>Review</th>{[3, 2, 1].map((k) => <th key={k} className="num">{monthLabel(addMonths(today.slice(0, 7), -k))}</th>)}</tr></thead>
             <tbody>{(kpis ?? []).map((k) => (
-              <tr key={k.id}><td>{k.name}</td><td className="num">{k.direction === "lower" ? "≤" : "≥"} {Number(k.target)} {k.unit}</td>
-                {[3, 2, 1].map((n) => { const v = (vals ?? []).find((x) => x.kpi_id === k.id && x.month === addMonths(today.slice(0, 7), -n)); const a = v ? kpiAchievement(Number(k.target), Number(v.actual), k.direction) : null;
-                  return <td key={n} className="num">{v ? <span className={`badge ${a! >= 95 ? "ok" : a! >= 80 ? "warn" : "danger"}`}>{Number(v.actual)}</span> : "—"}</td>; })}</tr>))}</tbody>
+              <tr key={k.id}><td>{k.name}</td><td className="num">{k.target != null ? `${k.direction === "lower" ? "≤" : "≥"} ${Number(k.target)} ${k.unit ?? ""}` : "—"}</td><td className="muted" style={{ fontSize: 12 }}>{FREQUENCIES[k.frequency] ?? k.frequency}{k.review_method ? ` · ${k.review_method}` : ""}</td>
+                {[3, 2, 1].map((n) => { const v = (vals ?? []).find((x) => x.kpi_id === k.id && x.month === addMonths(today.slice(0, 7), -n)); const a = v && k.target != null ? kpiAchievement(Number(k.target), Number(v.actual), k.direction) : null;
+                  return <td key={n} className="num">{v ? <span className={`badge ${a == null ? "" : a >= 95 ? "ok" : a >= 80 ? "warn" : "danger"}`}>{Number(v.actual)}</span> : "—"}</td>; })}</tr>))}</tbody>
           </table></div>
         </div>)}
     </AppShell>

@@ -408,3 +408,15 @@ fieldset.chips legend { font-size: 13px; font-weight: 600; margin-bottom: 4px; p
 .orgnode small { color: var(--muted); font-size: 12px; }
 .field.check, label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; }
 .field.check input, label.check input { width: auto; min-height: 0; margin: 0; }
+.flowline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; margin-bottom: 12px; }
+.flowline span { display: inline-flex; align-items: center; gap: 6px; }
+.flowline span > a, .flowline span:not(:has(a)) { background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; color: var(--text); }
+.flowline i { color: var(--muted); font-style: normal; }
+table.tight td, table.tight th { padding: 4px 6px; }
+table.tight input, table.tight select { min-height: 32px; padding: 4px 6px; font-size: 13px; }
+.rrcols { display: grid; grid-template-columns: 1fr 2fr 1.3fr 1.2fr 1.3fr; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.rrcols > div { padding: 8px 10px; border-right: 1px solid var(--border); font-size: 13px; }
+.rrcols > div:last-child { border-right: 0; }
+.rrcols h3 { margin: 0 0 6px; font-size: 13px; }
+.rrcols ul, .rrcols ol { margin: 0; padding-left: 16px; }
+@media (max-width: 800px) { .rrcols { grid-template-columns: 1fr; } .rrcols > div { border-right: 0; border-bottom: 1px solid var(--border); } }

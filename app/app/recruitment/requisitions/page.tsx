@@ -47,7 +47,7 @@ export default async function RequisitionsPage({ searchParams }: { searchParams:
         <h2>New requisition</h2>
         <p className="muted">{hr ? "HR requisitions are approved straight away; a job description is drafted for you to check." : "HR will review and approve it, then write the job description and start hiring."}</p>
         <ActionForm action={createRequisition} submitLabel={hr ? "Create requisition" : "Send to HR"} className="formgrid">
-          <RequisitionFields desigs={m.desigs} depts={m.depts} plants={m.plants} />
+          <RequisitionFields desigs={m.desigs} depts={m.depts} plants={m.plants} titles={m.titles} roles={m.roles} comps={m.comps} />
         </ActionForm>
       </div>
     </AppShell>

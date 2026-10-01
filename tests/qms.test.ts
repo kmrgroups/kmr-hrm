@@ -25,8 +25,8 @@ describe("skill matrix coverage", () => {
 });
 
 describe("competency gaps", () => {
-  const people = [{ id: "p1", designation_id: "op" }, { id: "p2", designation_id: "op" }, { id: "p3", designation_id: null }];
-  const req = [{ designation_id: "op", competency_id: "measure", required_level: 3 }, { designation_id: "op", competency_id: "safety", required_level: 3 }];
+  const people = [{ id: "p1", position_id: "op" }, { id: "p2", position_id: "op" }, { id: "p3", position_id: null }];
+  const req = [{ position_id: "op", competency_id: "measure", required_level: 3 }, { position_id: "op", competency_id: "safety", required_level: 3 }];
   const assessed = [{ employee_id: "p1", competency_id: "measure", level: 3 }, { employee_id: "p1", competency_id: "safety", level: 2 }, { employee_id: "p2", competency_id: "measure", level: 4 }];
   it("lists each level short of the role's need (not assessed counts as 0)", () => {
     expect(competencyGaps(people, req, assessed)).toEqual([
@@ -40,10 +40,10 @@ describe("competency gaps", () => {
 describe("training need identification", () => {
   const base: FindInput = {
     people: [
-      { id: "old", designation_id: "op", date_of_joining: "2024-01-10", status: "active" },
-      { id: "new", designation_id: "op", date_of_joining: "2026-09-20", status: "active" },
+      { id: "old", position_id: "op", date_of_joining: "2024-01-10", status: "active" },
+      { id: "new", position_id: "op", date_of_joining: "2026-09-20", status: "active" },
     ],
-    requirements: [{ designation_id: "op", competency_id: "measure", required_level: 3 }],
+    requirements: [{ position_id: "op", competency_id: "measure", required_level: 3 }],
     assessed: [{ employee_id: "old", competency_id: "measure", level: 2 }, { employee_id: "new", competency_id: "measure", level: 1 }],
     competencyNames: { measure: "Measuring instruments" },
     ops: [ops[0]!], skills: [{ employee_id: "x", operation_id: "op10", level: 3 }, { employee_id: "old", operation_id: "op10", level: 2 }], minQualified: 2,

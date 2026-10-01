@@ -30,6 +30,7 @@ const employeeSchema = z.object({
   mobile: z.string().trim().refine((v) => !!normalizeIndianMobile(v), "Enter a valid 10-digit mobile").transform((v) => normalizeIndianMobile(v)!),
   designation_id: uuidOrEmpty,
   department_id: uuidOrEmpty,
+  position_id: uuidOrEmpty,
   plant_id: uuidOrEmpty,
   reporting_manager_id: uuidOrEmpty,
   employment_type: z.enum(["permanent", "probation", "fixed_term", "trainee", "apprentice", "contract"]),

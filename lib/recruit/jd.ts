@@ -1,6 +1,7 @@
 // Job description draft from a requisition — written from the role family's knowledge (lib/recruit/vocab.ts).
 // Free and instant; HR edits and approves the draft, and the approved JD is reused for the next opening.
 import { detectFamily, familyByKey, QMS_CONTEXT, type Family } from "./vocab";
+import { roleAreas } from "./roles";
 
 export interface JdInput {
   title: string;
@@ -13,6 +14,8 @@ export interface JdInput {
   expMax?: number | null;
   reportingTo?: string | null;
   location?: string | null;
+  role?: string | null;             // the role of the position: "Shopfloor & manpower handling", "Calibration" …
+  competencies?: string[];          // competencies HR says the position needs (optional)
 }
 
 export interface JdDraft {
@@ -35,19 +38,28 @@ export function experienceText(min?: number | null, max?: number | null): string
 const trim = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export function draftJd(inp: JdInput): JdDraft {
-  const fam: Family = familyByKey(inp.family) ?? detectFamily(inp.designation, inp.title, inp.department);
+  const fam: Family = familyByKey(inp.family) ?? detectFamily(inp.designation, inp.title, inp.role, inp.department);
   const senior = (inp.expMin ?? 0) >= 5 || /manager|head|lead|senior|sr\.?|incharge|in-charge|chief/i.test(`${inp.title} ${inp.designation ?? ""}`);
   const vars = { title: inp.title, department: inp.department || fam.label, company: inp.company || "the company" };
-  const resp = [...fam.responsibilities];
-  if (senior) resp.push("Lead and develop the team; set targets, review performance and build backups for key skills");
+  const areas = roleAreas(inp.role);
+  const uniq = (a: string[]) => a.filter((x, i) => a.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+  // the role's own work first, then the family's
+  // when the Role names its areas, the department's general template only adds the background
+  const resp = uniq([...areas.flatMap((a) => a.responsibilities), ...(areas.length ? fam.responsibilities.slice(0, 4) : fam.responsibilities)]);
+  if (senior && !resp.some((r) => /develop the team|lead and develop/i.test(r))) resp.push("Lead and develop the team; set targets, review performance and build backups for key skills");
+  const must = new Map<string, number>();
+  for (const n of inp.competencies ?? []) if (n.trim()) must.set(n.trim(), 3);               // HR's choice counts most
+  for (const a of areas) for (const [n, w] of a.competencies) must.set(n, Math.max(must.get(n) ?? 0, w));
+  for (const [n, w] of fam.must) { const fw = areas.length ? w - 1 : w; if (fw > 0) must.set(n, Math.max(must.get(n) ?? 0, fw)); }
+  if (senior && !must.has("People leadership")) must.set("People leadership", 2);
   return {
     title: inp.title,
     family: fam.key,
-    purpose: fill(fam.purpose, vars),
-    responsibilities: resp,
-    kpis: [...fam.kpis],
-    must_have: fam.must.map(([name, weight]) => ({ name, weight })).concat(senior && !fam.must.some(([n]) => n === "People leadership") ? [{ name: "People leadership", weight: 2 }] : []),
-    good_to_have: fam.good.map((name) => ({ name, weight: 1 })),
+    purpose: fill(fam.purpose, vars) + (areas.length ? ` The role covers ${areas.map((a) => a.label.toLowerCase()).join(", ")}.` : ""),
+    responsibilities: resp.slice(0, 14),
+    kpis: uniq([...areas.flatMap((a) => a.kpis), ...(areas.length ? fam.kpis.slice(0, 2) : fam.kpis)]).slice(0, 8),
+    must_have: [...must.entries()].map(([name, weight]) => ({ name, weight })).slice(0, 10),
+    good_to_have: fam.good.filter((g) => !must.has(g)).map((name) => ({ name, weight: 1 })),
     qualifications: senior ? fam.qualification.senior : fam.qualification.junior,
     experience: experienceText(inp.expMin, inp.expMax),
     reporting_to: inp.reportingTo || (senior ? "Plant Head" : `${fam.label} Manager`),

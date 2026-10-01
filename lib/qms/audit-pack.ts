@@ -104,10 +104,10 @@ export async function buildAuditPack(tenant: Tenant, pack: Pack): Promise<Uint8A
     newPage(p.name);
     T([p.code, p.designation, p.department, p.plant, p.joined ? `joined ${fmt(p.joined)}` : null].filter(Boolean).join("  |  "), M, y, 9, r, GREY); y -= 16;
     section("Roles & responsibilities", "ISO 9001 5.3");
-    need(14); T(p.rr ? (p.rr.acknowledged ? `Version ${p.rr.version} acknowledged on ${fmt(p.rr.acknowledged)}` : `Version ${p.rr.version} - not acknowledged yet`) : "No roles & responsibilities written for this designation", M + 6, y, 8.5, r, p.rr?.acknowledged ? OK : WARN); y -= 14;
+    need(14); T(p.rr ? (p.rr.acknowledged ? `Version ${p.rr.version} acknowledged on ${fmt(p.rr.acknowledged)}` : `Version ${p.rr.version} - not acknowledged yet`) : "No R&R sheet approved for this person's position", M + 6, y, 8.5, r, p.rr?.acknowledged ? OK : WARN); y -= 14;
     section("Competence - required vs assessed", "IATF 7.2.1 / ISO 9001 7.2");
     table([{ label: "Competency", w: 220 }, { label: "Needs", w: 50, right: true }, { label: "Has", w: 50, right: true }, { label: "Assessed", w: W - 2 * M - 320 }],
-      p.competencies.map((c) => ({ cells: [c.name, String(c.required), String(c.actual), c.assessed ? `${fmt(c.assessed)}${c.by ? ` by ${c.by}` : ""}` : "-"], color: [null, null, c.actual >= c.required ? OK : BAD, null] })), "No competency requirements for this designation.");
+      p.competencies.map((c) => ({ cells: [c.name, String(c.required), String(c.actual), c.assessed ? `${fmt(c.assessed)}${c.by ? ` by ${c.by}` : ""}` : "-"], color: [null, null, c.actual >= c.required ? OK : BAD, null] })), "No competency requirements for this person's position.");
     section("Skill matrix", "IATF 7.2.1 / 7.2.3");
     table([{ label: "Operation", w: 230 }, { label: "Level", w: 100 }, { label: "Certified", w: 90 }, { label: "Valid until", w: W - 2 * M - 420 }],
       p.skills.map((s) => ({ cells: [s.op, LV[s.level] ?? String(s.level), fmt(s.certified), fmt(s.valid)], color: [null, s.level >= 3 ? OK : WARN, null, null] })), "No operations recorded.");

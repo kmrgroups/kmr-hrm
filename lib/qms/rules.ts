@@ -75,17 +75,17 @@ export function coverage(ops: Operation[], rows: SkillRow[], minDefault: number,
 }
 
 // ------------------------------------------------------------------ competency gaps
-export interface Requirement { designation_id: string; competency_id: string; required_level: number }
+export interface Requirement { position_id: string; competency_id: string; required_level: number }
 export interface Assessment { employee_id: string; competency_id: string; level: number }
-export interface Person { id: string; designation_id: string | null; date_of_joining?: string | null; status?: string }
+export interface Person { id: string; position_id: string | null; date_of_joining?: string | null; status?: string }
 export interface Gap { employee_id: string; competency_id: string; required: number; actual: number; gap: number }
 
 export function competencyGaps(people: Person[], req: Requirement[], assessed: Assessment[]): Gap[] {
   const lvl = new Map(assessed.map((a) => [`${a.employee_id}|${a.competency_id}`, a.level]));
   const out: Gap[] = [];
   for (const p of people) {
-    if (!p.designation_id) continue;
-    for (const r of req.filter((x) => x.designation_id === p.designation_id)) {
+    if (!p.position_id) continue;
+    for (const r of req.filter((x) => x.position_id === p.position_id)) {
       const actual = lvl.get(`${p.id}|${r.competency_id}`) ?? 0;
       if (actual < r.required_level) out.push({ employee_id: p.id, competency_id: r.competency_id, required: r.required_level, actual, gap: r.required_level - actual });
     }
@@ -97,7 +97,7 @@ export function competencyGaps(people: Person[], req: Requirement[], assessed: A
 export function competencyCoverage(people: Person[], req: Requirement[], assessed: Assessment[]): number {
   let need = 0, met = 0;
   const lvl = new Map(assessed.map((a) => [`${a.employee_id}|${a.competency_id}`, a.level]));
-  for (const p of people) for (const r of req.filter((x) => x.designation_id === p.designation_id)) {
+  for (const p of people) for (const r of req.filter((x) => x.position_id === p.position_id)) {
     need += 1; if ((lvl.get(`${p.id}|${r.competency_id}`) ?? 0) >= r.required_level) met += 1;
   }
   return need ? Math.round((met / need) * 100) : 100;
@@ -120,7 +120,7 @@ export interface FindInput {
 
 /**
  * Finds what training each person needs, from the records alone:
- *  • a competency below the level his designation needs → the programme that builds it (high when 2+ levels short)
+ *  • a competency below the level his position needs → the programme that builds it (high when 2+ levels short)
  *  • an operation short of qualified people → the people already learning it (level 1–2) go next; overdue re-certification
  *  • a new joiner (within N days) without induction, safety induction and quality awareness
  *  • awareness of the quality policy not refreshed for 12 months (IATF 7.3)
@@ -145,7 +145,7 @@ export function findNeeds(inp: FindInput, on = today()): NeedDraft[] {
     if (has(g.employee_id, "competency_gap", { competency_id: g.competency_id, program_id: prog?.id })) continue;
     const name = inp.competencyNames[g.competency_id] ?? "Competency";
     out.push({ employee_id: g.employee_id, program_id: prog?.id ?? null, competency_id: g.competency_id, operation_id: null, topic: prog?.title ?? name,
-      source: "competency_gap", reason: `${name}: level ${g.actual} of ${g.required} needed for the role`, priority: g.gap >= 2 ? "high" : "normal",
+      source: "competency_gap", reason: `${name}: level ${g.actual} of ${g.required} needed for the position`, priority: g.gap >= 2 ? "high" : "normal",
       target_month: g.gap >= 2 ? next : addMonths(month, 2) });
   }
 

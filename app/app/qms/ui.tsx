@@ -3,11 +3,12 @@ import { p } from "@/lib/base-path";
 export type QmsTab = "home" | "skills" | "competency" | "tni" | "plan" | "eff" | "ojt" | "auditors" | "roles" | "kpi" | "pack";
 
 export function QmsTabs({ active, hr = true }: { active: QmsTab; hr?: boolean }) {
+  // in the order of the flow: position → R&R → competency mapping → KPI sheets → TNI → calendar → effectiveness
   const t: [QmsTab, string, string, boolean][] = [
-    ["home", "Overview", "/app/qms", true], ["skills", "Skill matrix", "/app/qms/skills", true], ["competency", "Competency", "/app/qms/competency", true],
-    ["tni", "Training needs", "/app/qms/needs", true], ["plan", "Training plan", "/app/qms/training", true], ["eff", "Effectiveness", "/app/qms/effectiveness", true],
-    ["ojt", "On-the-job", "/app/qms/ojt", true], ["auditors", "Auditors", "/app/qms/auditors", hr], ["roles", "Roles (R&R)", "/app/qms/roles", true],
-    ["kpi", "KPIs", "/app/qms/kpi", true], ["pack", "Audit pack", "/app/qms/audit-pack", hr],
+    ["home", "Overview", "/app/qms", true], ["roles", "Positions & R&R", "/app/qms/positions", true], ["competency", "Competency mapping", "/app/qms/competency", true],
+    ["kpi", "KPI sheets", "/app/qms/kpi", true], ["tni", "Training needs", "/app/qms/needs", true], ["plan", "Training calendar", "/app/qms/training", true],
+    ["eff", "Effectiveness", "/app/qms/effectiveness", true], ["skills", "Skill matrix", "/app/qms/skills", true], ["ojt", "On-the-job", "/app/qms/ojt", true],
+    ["auditors", "Auditors", "/app/qms/auditors", hr], ["pack", "Audit pack", "/app/qms/audit-pack", hr],
   ];
   return <div className="tabs" style={{ marginBottom: 16 }}>{t.filter((x) => x[3]).map(([k, label, href]) => <a key={k} href={p(href)} className={k === active ? "active" : ""}>{label}</a>)}</div>;
 }

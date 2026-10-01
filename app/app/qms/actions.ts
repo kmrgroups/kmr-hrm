@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { assertRole, hasRole, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,6 +14,9 @@ import { istToday } from "@/lib/attendance/time";
 import { fromLocal, fmtWhen } from "@/lib/recruit/format";
 import { addDaysIso, addMonths, findNeeds, planFromNeeds, QUALIFIED } from "@/lib/qms/rules";
 import { isSampleRecipient } from "@/lib/notify/render";
+import { draftJd } from "@/lib/recruit/jd";
+import { ensurePosition, writeSheetFromJd } from "@/lib/qms/positions";
+import { competencyCategory } from "@/lib/qms/sheet";
 import type { ActionState } from "@/app/app/employees/actions";
 import type { Role } from "@/lib/types";
 
@@ -125,31 +129,6 @@ export async function saveCompetency(_: ActionState, f: FormData): Promise<Actio
   } catch (e) { return fail(e); }
 }
 
-export async function saveRequirements(_: ActionState, f: FormData): Promise<ActionState> {
-  try {
-    const { tenant, user } = await assertRole(HR);
-    const desig = uuid(f, "designation_id");
-    if (!desig) return { error: "Choose a designation." };
-    const db = await createClient();
-    const { data: comps } = await db.from("competencies").select("id");
-    let n = 0;
-    for (const c of comps ?? []) {
-      const v = str(f, `req_${c.id}`, 2);
-      if (v === "") continue;
-      const lvl = Number(v);
-      if (lvl === 0) { await db.from("role_competencies").delete().eq("designation_id", desig).eq("competency_id", c.id); continue; }
-      if (!(lvl >= 1 && lvl <= 4)) continue;
-      const { data: ex } = await db.from("role_competencies").select("id").eq("designation_id", desig).eq("competency_id", c.id).maybeSingle();
-      const { error } = ex ? await db.from("role_competencies").update({ required_level: lvl }).eq("id", ex.id)
-        : await db.from("role_competencies").insert({ tenant_id: tenant.id, designation_id: desig, competency_id: c.id, required_level: lvl });
-      err(error); n++;
-    }
-    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.requirements_saved", entity: "role_competencies", entityId: desig, data: { competencies: n } });
-    revalidatePath("/app/qms/competency");
-    return { ok: `Saved: ${n} competenc${n === 1 ? "y" : "ies"} needed for this designation.` };
-  } catch (e) { return fail(e); }
-}
-
 // ------------------------------------------------------------------ training need identification
 export async function findTrainingNeeds(_: ActionState, f: FormData): Promise<ActionState> {
   void f;
@@ -158,9 +137,9 @@ export async function findTrainingNeeds(_: ActionState, f: FormData): Promise<Ac
     const db = await createClient();
     const today = istToday();
     const [emps, req, assessed, comps, ops, skills, progs, attended, open, st] = await Promise.all([
-      fetchAll<{ id: string; designation_id: string | null; date_of_joining: string | null; status: string }>((a, b) =>
-        db.from("employees").select("id,designation_id,date_of_joining,status").in("status", ["active", "invited", "onboarding", "submitted"]).range(a, b)),
-      db.from("role_competencies").select("designation_id,competency_id,required_level").then((r) => r.data ?? []),
+      fetchAll<{ id: string; position_id: string | null; date_of_joining: string | null; status: string }>((a, b) =>
+        db.from("employees").select("id,position_id,date_of_joining,status").in("status", ["active", "invited", "onboarding", "submitted"]).range(a, b)),
+      db.from("role_competencies").select("position_id,competency_id,required_level").not("position_id", "is", null).then((r) => (r.data ?? []) as { position_id: string; competency_id: string; required_level: number }[]),
       fetchAll<{ employee_id: string; competency_id: string; level: number }>((a, b) => db.from("employee_competencies").select("employee_id,competency_id,level").range(a, b)),
       db.from("competencies").select("id,name").then((r) => r.data ?? []),
       db.from("operations").select("id,line,code,name,critical,min_qualified").eq("active", true).then((r) => r.data ?? []),
@@ -649,54 +628,134 @@ export async function addAudit(_: ActionState, f: FormData): Promise<ActionState
   } catch (e) { return fail(e); }
 }
 
-// ------------------------------------------------------------------ roles & responsibilities
-export async function saveRr(_: ActionState, f: FormData): Promise<ActionState> {
+// ------------------------------------------------------------------ positions and their R&R sheets
+export async function addPosition(_: ActionState, f: FormData): Promise<ActionState> {
+  let id = "";
   try {
     const { tenant, user } = await assertRole(HR);
-    const desig = uuid(f, "designation_id"), dept = uuid(f, "department_id");
-    if (!desig) return { error: "Choose the designation." };
+    const title = str(f, "title", 120), dept = uuid(f, "department_id");
+    if (title.length < 2) return { error: "Give the position (e.g. Production Head)." };
+    if (!dept) return { error: "Choose the department." };
+    const db = await createClient();
+    const { data: d } = await db.from("departments").select("name").eq("id", dept).maybeSingle();
+    id = await ensurePosition(db, tenant.id, { title, role: opt(f, "role", 160), department_id: dept, department: d?.name }, user.id);
+    if (f.get("write_jd") === "on") {
+      const { data: has } = await db.from("job_descriptions").select("id").eq("position_id", id).limit(1);
+      if (!has?.length) {
+        const { data: pos } = await db.from("positions").select("title,role").eq("id", id).single();
+        const jd = draftJd({ title: pos!.title, department: d?.name, role: pos!.role, competencies: f.getAll("competency").map(String).slice(0, 20) });
+        await db.from("job_descriptions").insert({ tenant_id: tenant.id, position_id: id, status: "draft", version: 1, created_by: user.id, ...jd });
+      }
+    }
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.position_added", entity: "positions", entityId: id });
+  } catch (e) { return fail(e); }
+  redirect(`/app/qms/positions/${id}`);
+}
+
+/** R&R sheet: roles, responsibilities, authority, competency (with level) and KPIs (target, frequency, review method) */
+export async function savePositionSheet(_: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(HR);
+    const pid = uuid(f, "position_id");
+    if (!pid) return { error: "Unknown position." };
     const resp = lines(f, "responsibilities");
     if (!resp.length) return { error: "Write the responsibilities, one per line." };
-    const row = { purpose: opt(f, "purpose", 1500), responsibilities: resp, authorities: lines(f, "authorities"), deputy: opt(f, "deputy", 120), interfaces: lines(f, "interfaces") };
     const db = await createClient();
-    let q = db.from("rr_roles").select("id,status,version,purpose,responsibilities,authorities,deputy,interfaces").eq("designation_id", desig);
-    q = dept ? q.eq("department_id", dept) : q.is("department_id", null);
-    const { data: ex } = await q.maybeSingle();
-    if (ex) {
-      const same = JSON.stringify([ex.purpose, ex.responsibilities, ex.authorities, ex.deputy, ex.interfaces]) === JSON.stringify([row.purpose, row.responsibilities, row.authorities, row.deputy, row.interfaces]);
-      if (same) return { ok: "No change." };
-      const { error } = await db.from("rr_roles").update({ ...row, version: ex.status === "approved" ? ex.version + 1 : ex.version, status: "draft", approved_at: null, approved_by: null }).eq("id", ex.id);
-      err(error);
-      await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.rr_revised", entity: "rr_roles", entityId: ex.id });
-      revalidatePath("/app/qms/roles");
-      return done(ex.status === "approved" ? `Saved as version ${ex.version + 1} (draft). Approve it to publish; everyone in the role acknowledges again.` : "Draft saved.");
+    const { data: pos } = await db.from("positions").select("id,department_id").eq("id", pid).single();
+    if (!pos) return { error: "Position not found." };
+    // competencies: rows comp_name_i / comp_level_i
+    const comps: { name: string; level: number }[] = [];
+    for (let i = 0; i < 40; i++) {
+      const n = str(f, `comp_name_${i}`, 120), l = Number(str(f, `comp_level_${i}`, 2));
+      if (n && l >= 1 && l <= 4 && !comps.some((c) => c.name.toLowerCase() === n.toLowerCase())) comps.push({ name: n, level: l });
     }
-    const { error } = await db.from("rr_roles").insert({ tenant_id: tenant.id, designation_id: desig, department_id: dept, ...row }); err(error);
-    revalidatePath("/app/qms/roles");
-    return done("Draft saved. Approve it to publish it to the people in this role.");
+    if (!comps.length) return { error: "List at least one competency the position needs." };
+    // KPIs: rows kpi_*_i
+    const kpis: Record<string, unknown>[] = [];
+    for (let i = 0; i < 30; i++) {
+      const name = str(f, `kpi_name_${i}`, 120);
+      if (!name) continue;
+      const t = num(f, `kpi_target_${i}`);
+      if (t != null && Number.isNaN(t)) return { error: `Target of “${name}” must be a number.` };
+      const freq = str(f, `kpi_freq_${i}`, 20);
+      kpis.push({ id: uuid(f, `kpi_id_${i}`), name, unit: opt(f, `kpi_unit_${i}`, 20), target: t, direction: str(f, `kpi_dir_${i}`, 10) === "lower" ? "lower" : "higher",
+        frequency: ["daily", "weekly", "monthly", "quarterly", "half_yearly", "yearly"].includes(freq) ? freq : "monthly", review_method: opt(f, `kpi_review_${i}`, 200),
+        data_source: opt(f, `kpi_source_${i}`, 200), sort_order: kpis.length + 1 });
+    }
+    const fields = { purpose: opt(f, "purpose", 1500), roles: lines(f, "roles", 12, 120), responsibilities: resp, authorities: lines(f, "authorities"), interfaces: lines(f, "interfaces", 12, 120), department_id: pos.department_id };
+    const { data: rr } = await db.from("rr_roles").select("id,version,status").eq("position_id", pid).maybeSingle();
+    let version = 1;
+    if (rr) {
+      version = rr.status === "approved" ? rr.version + 1 : rr.version;
+      const { error } = await db.from("rr_roles").update({ ...fields, version, status: "draft", approved_at: null, approved_by: null }).eq("id", rr.id); err(error);
+    } else {
+      const { count } = await db.from("rr_roles").select("id", { count: "exact", head: true });
+      const { error } = await db.from("rr_roles").insert({ tenant_id: tenant.id, position_id: pid, ...fields, doc_no: `HR-RR-${String((count ?? 0) + 1).padStart(3, "0")}` }); err(error);
+    }
+    await db.from("role_competencies").delete().eq("position_id", pid);
+    for (const c of comps) {
+      let { data: lib } = await db.from("competencies").select("id").ilike("name", c.name.replace(/[%_]/g, "\\$&")).limit(1);
+      if (!lib?.length) { const r = await db.from("competencies").insert({ tenant_id: tenant.id, name: c.name, category: competencyCategory(c.name) }).select("id"); lib = r.data; }
+      if (lib?.[0]) await db.from("role_competencies").insert({ tenant_id: tenant.id, position_id: pid, competency_id: lib[0].id, required_level: c.level });
+    }
+    const { data: curK } = await db.from("kpis").select("id").eq("position_id", pid);
+    const kept = new Set<string>();
+    for (const k of kpis) {
+      const { id, ...row } = k as { id: string | null } & Record<string, unknown>;
+      if (id && (curK ?? []).some((x) => x.id === id)) { kept.add(id); const { error } = await db.from("kpis").update({ ...row, active: true }).eq("id", id); err(error); }
+      else { const { error } = await db.from("kpis").insert({ tenant_id: tenant.id, position_id: pid, ...row }); err(error); }
+    }
+    const off = (curK ?? []).map((x) => x.id).filter((x) => !kept.has(x));
+    if (off.length) await db.from("kpis").update({ active: false }).in("id", off);
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.sheet_saved", entity: "rr_roles", entityId: pid, data: { version } });
+    revalidatePath(`/app/qms/positions/${pid}`);
+    return done(rr?.status === "approved" ? `Saved as version ${version} (draft). Approve it to publish — the holders acknowledge it again.` : "Saved. Approve the sheet to publish it to the people holding the position.");
   } catch (e) { return fail(e); }
 }
 
-export async function approveRr(_: ActionState, f: FormData): Promise<ActionState> {
+export async function rewriteSheet(_: ActionState, f: FormData): Promise<ActionState> {
   try {
     const { tenant, user } = await assertRole(HR);
-    const id = uuid(f, "id");
-    if (!id) return { error: "Unknown record." };
+    const pid = uuid(f, "position_id");
+    if (!pid) return { error: "Unknown position." };
+    const r = await writeSheetFromJd((await createClient()) as never, tenant.id, pid);
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.sheet_written", entity: "rr_roles", entityId: pid, data: r });
+    revalidatePath(`/app/qms/positions/${pid}`);
+    return done(`The R&R sheet is written from the job description (version ${r.version}, draft). Review it, then approve.`);
+  } catch (e) { return fail(e); }
+}
+
+export async function approveSheet(_: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(HR);
+    const pid = uuid(f, "position_id");
+    if (!pid) return { error: "Unknown position." };
     const db = await createClient();
-    const { data: r } = await db.from("rr_roles").select("id,designation_id,department_id,version,status,designation:designations(name)").eq("id", id).single();
-    if (!r) return { error: "Not found." };
+    const { data: r } = await db.from("rr_roles").select("id,version,status,position:positions(title,role)").eq("position_id", pid).single();
+    if (!r) return { error: "Write the sheet first." };
     if (r.status === "approved") return { error: "Already approved." };
-    const { error } = await db.from("rr_roles").update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() }).eq("id", id); err(error);
-    let q = db.from("employees").select("first_name,last_name,email,mobile").eq("status", "active").eq("designation_id", r.designation_id);
-    if (r.department_id) q = q.eq("department_id", r.department_id);
-    const { data: emps } = await q;
+    const { error } = await db.from("rr_roles").update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() }).eq("id", r.id); err(error);
+    const { data: emps } = await db.from("employees").select("first_name,last_name,email,mobile").eq("status", "active").eq("position_id", pid);
     const origin = await currentOrigin();
-    const desig = (Array.isArray(r.designation) ? r.designation[0] : r.designation) as { name: string } | null;
-    for (const e of emps ?? []) await notify({ tenant, event: "rr_published", to: { name: fullName(e), email: e.email, phone: e.mobile }, channels: ["email"], related: { type: "rr_roles", id },
-      vars: { designation: desig?.name ?? "", version: r.version, link: `${origin}/me/development` } });
-    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.rr_approved", entity: "rr_roles", entityId: id, data: { version: r.version } });
-    revalidatePath("/app/qms/roles");
-    return done(`Approved and published (version ${r.version}). ${emps?.length ?? 0} people asked to acknowledge.`);
+    const pos = (Array.isArray(r.position) ? r.position[0] : r.position) as { title: string; role: string | null } | null;
+    for (const e of emps ?? []) await notify({ tenant, event: "rr_published", to: { name: fullName(e), email: e.email, phone: e.mobile }, channels: ["email"], related: { type: "rr_roles", id: r.id },
+      vars: { designation: pos ? `${pos.title}${pos.role ? ` (${pos.role})` : ""}` : "", version: r.version, link: `${origin}/me/development` } });
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.sheet_approved", entity: "rr_roles", entityId: r.id, data: { version: r.version } });
+    revalidatePath(`/app/qms/positions/${pid}`);
+    return done(`Approved and published (version ${r.version}). ${emps?.length ?? 0} people holding the position are asked to acknowledge it.`);
+  } catch (e) { return fail(e); }
+}
+
+export async function setEmployeePosition(_: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(HR);
+    const pid = uuid(f, "position_id"), emps = ids(f, "employee_id");
+    if (!pid || !emps.length) return { error: "Choose the people." };
+    const db = await createClient();
+    const { error } = await db.from("employees").update({ position_id: pid }).in("id", emps); err(error);
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.position_assigned", entity: "employees", data: { position_id: pid, people: emps.length } });
+    revalidatePath(`/app/qms/positions/${pid}`);
+    return { ok: `${emps.length} ${emps.length === 1 ? "person now holds" : "people now hold"} this position.` };
   } catch (e) { return fail(e); }
 }
 
@@ -714,10 +773,10 @@ export async function ackRr(_: ActionState, f: FormData): Promise<ActionState> {
     if (!id) return { error: "Unknown record." };
     const admin = createAdminClient();
     const [{ data: r }, { data: e }] = await Promise.all([
-      admin.from("rr_roles").select("id,tenant_id,designation_id,department_id,version,status").eq("id", id).single(),
-      admin.from("employees").select("designation_id,department_id").eq("id", user.employee_id!).single(),
+      admin.from("rr_roles").select("id,tenant_id,position_id,version,status").eq("id", id).single(),
+      admin.from("employees").select("position_id").eq("id", user.employee_id!).single(),
     ]);
-    if (!r || r.tenant_id !== tenant.id || r.status !== "approved" || r.designation_id !== e?.designation_id || (r.department_id && r.department_id !== e?.department_id)) return { error: "This is not your role." };
+    if (!r || r.tenant_id !== tenant.id || r.status !== "approved" || !r.position_id || r.position_id !== e?.position_id) return { error: "This is not your position." };
     const { error } = await admin.from("rr_acks").insert({ tenant_id: tenant.id, rr_id: id, employee_id: user.employee_id, version: r.version });
     if (error && !error.message.includes("duplicate")) return { error: error.message };
     revalidatePath("/me/development");
@@ -741,25 +800,6 @@ export async function ackAwareness(_: ActionState, f: FormData): Promise<ActionS
 }
 
 // ------------------------------------------------------------------ KPIs
-export async function saveKpi(_: ActionState, f: FormData): Promise<ActionState> {
-  try {
-    const { tenant } = await assertRole(HR);
-    const id = uuid(f, "id"), name = str(f, "name", 120), target = num(f, "target");
-    if (name.length < 2) return { error: "Name the KPI." };
-    if (target == null || Number.isNaN(target)) return { error: "Give the target as a number." };
-    const desig = uuid(f, "designation_id"), dept = uuid(f, "department_id");
-    if (!desig && !dept) return { error: "Choose the designation (or department) the KPI is for." };
-    const weight = int(f, "weight") ?? 1;
-    const row = { tenant_id: tenant.id, designation_id: desig, department_id: dept, name, unit: opt(f, "unit", 20), target, direction: str(f, "direction", 10) === "lower" ? "lower" : "higher",
-      frequency: str(f, "frequency", 10) === "quarterly" ? "quarterly" : "monthly", data_source: opt(f, "data_source", 200), weight: weight >= 1 && weight <= 5 ? weight : 1, active: f.get("inactive") !== "on" };
-    const db = await createClient();
-    const { error } = id ? await db.from("kpis").update(row).eq("id", id) : await db.from("kpis").insert(row);
-    err(error);
-    revalidatePath("/app/qms/kpi");
-    return id ? done("KPI saved.") : { ok: `${name} added.` };
-  } catch (e) { return fail(e); }
-}
-
 export async function saveKpiValues(_: ActionState, f: FormData): Promise<ActionState> {
   try {
     const { tenant, user } = await assertRole(TEAM);

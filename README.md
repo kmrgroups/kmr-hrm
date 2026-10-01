@@ -57,13 +57,18 @@ two plants, a month of attendance, leave, salaries, loans, and the hiring flow f
 appear on the careers page and are never messaged (their e-mails end in `@demo.kmr.test`). The sample flush removes all
 of it; real-data flushes keep it. Each new module adds its own sample to `hrm.demo_flow`.
 
-**Phase 5A — QMS people development** (free; run `supabase/migrations/0008_qms.sql`): HRM › QMS & training
+**Phase 5A — QMS people development** (free; run `supabase/migrations/0008_qms.sql` and `0009_positions.sql`)
+
+Flow: Requisition → Job description → R&R sheet → Competency mapping → KPI sheet → Training needs → Training calendar → Attendance → Effectiveness.
+: HRM › QMS & training
 
 | Area | What works | Clause |
 | --- | --- | --- |
-| Roles & responsibilities | Per designation (optionally per department): purpose, responsibilities, authority, deputy, interfaces; versions; approve → each person acknowledges in *My skills & training*; org chart from the reporting lines | ISO 9001 5.3 |
-| KPIs | Per designation / department with target, direction, weight; monthly values per person; score against target; roll-up by department and plant | ISO 9001 6.2, 9.1 |
-| Competency | Library (18 ready), level each designation needs, assessed level per person in a tap-to-change grid, gaps | IATF 7.2.1 |
+| Positions | A position is **Position + Role + Department** (e.g. Calibration Incharge · Calibration & gauge control · Quality) — never a designation or a person. The requisition creates it; every employee holds one (new joiners get it from the requisition) | ISO 9001 5.3 |
+| Job description | Written for the position from the Role and the competencies HR ticks; HR adds, changes, deletes lines and approves; versioned and reused for the next opening of the position | ISO 9001 7.2 |
+| R&R sheet | From the approved JD: roles, responsibilities, authority, competency (level needed) and KPIs (target, review frequency, review method); HR edits and approves; landscape PDF with the company logo, document number, revision and ISO 9001 / IATF 16949 clauses; holders acknowledge it | ISO 9001 5.3, IATF 5.3.1 |
+| KPI sheets | Each person's KPIs from his position's sheet: KPI, target, frequency of review, review method and the actual (monthly); score, roll-up by department and plant; KPI sheet PDF per person | ISO 9001 6.2, 9.1 |
+| Competency mapping | Each holder (name, designation) assessed against the position's competency levels in a tap-to-change grid; gaps listed; competency mapping PDF | IATF 7.2.1 |
 | Skill matrix | Lines and operations (critical, safety); levels 0–4 as quarter circles; qualified = 3–4 for a year; alerts: nobody / too few qualified, no backup, re-certification overdue | IATF 7.2.1, 7.2.3 |
 | Training needs | “Find training needs” from competency gaps, short operations, re-certification, new joiners, yearly awareness; plus process changes, complaints / 8D, audit findings, requests (managers ask for their team) | IATF 7.2.1 |
 | Training plan | Programmes (14 ready); “Put open needs into the plan” makes sessions per programme per month; invitations and day-before reminders (e-mail + WhatsApp); attendance by scanning the ID card's QR with the phone camera or typing the code; pre / post test | ISO 9001 7.2 |

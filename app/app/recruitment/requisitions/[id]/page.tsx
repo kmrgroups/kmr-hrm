@@ -24,7 +24,7 @@ export default async function RequisitionPage({ params, searchParams }: { params
   const hr = hasRole(session.user, ["hr_manager", "hr_executive"]);
   const { id } = await params, { f } = await searchParams;
   const db = await createClient();
-  const { data: r } = await db.from("requisitions").select("*, designation:designations(name), department:departments(name), plant:plants(name)").eq("id", id).maybeSingle();
+  const { data: r } = await db.from("requisitions").select("*, designation:designations(name), department:departments(name), plant:plants(name), position:positions(id,title,role)").eq("id", id).maybeSingle();
   if (!r) notFound();
   const [{ data: jd }, { data: apps }, m, origin] = await Promise.all([
     r.jd_id ? db.from("job_descriptions").select("*").eq("id", r.jd_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -32,6 +32,7 @@ export default async function RequisitionPage({ params, searchParams }: { params
     masters(db), currentOrigin(),
   ]);
   const j = jd as JdRow | null;
+  const pos = one(r.position as { id: string; title: string; role: string | null } | null);
   const editable = hr || (r.raised_by === session.user.id && ["draft", "pending"].includes(r.status));
   const careers = `${origin}/careers/${r.id}`;
   const filter = f && ["new", "shortlisted", "interview", "selected", "declined", "on_hold"].includes(f) ? f : null;
@@ -70,6 +71,7 @@ export default async function RequisitionPage({ params, searchParams }: { params
           <h2>Requisition</h2>
           <dl className="kv">
             <dt>Status</dt><dd>{REQ_STATUS_LABEL[r.status]}</dd>
+            <dt>Position</dt><dd>{pos ? <>{pos.title}{pos.role ? ` — ${pos.role}` : ""}{hr && <> · <a href={p(`/app/qms/positions/${pos.id}`)}>R&amp;R sheet</a></>}</> : "—"}</dd>
             <dt>Designation</dt><dd>{one(r.designation as { name: string } | null)?.name ?? "—"}</dd>
             <dt>Department</dt><dd>{one(r.department as { name: string } | null)?.name ?? "—"}</dd>
             <dt>Plant / location</dt><dd>{[one(r.plant as { name: string } | null)?.name, r.location].filter(Boolean).join(" · ") || "—"}</dd>
@@ -82,12 +84,12 @@ export default async function RequisitionPage({ params, searchParams }: { params
           </dl>
           {editable && <details style={{ marginTop: 12 }}><summary style={{ cursor: "pointer", fontWeight: 600 }}>Change the requisition</summary>
             <ActionForm action={updateRequisition} submitLabel="Save" className="formgrid" hidden={{ id: r.id }}>
-              <RequisitionFields d={r} desigs={m.desigs} depts={m.depts} plants={m.plants} />
+              <RequisitionFields d={r} desigs={m.desigs} depts={m.depts} plants={m.plants} titles={m.titles} roles={m.roles} role={pos?.role} />
             </ActionForm></details>}
         </div>
 
         <div className="card">
-          <h2>Job description {j && <span className={`badge ${j.status === "approved" ? "ok" : "warn"}`}>{j.status === "approved" ? `Approved · v${j.version}` : `Draft · v${j.version}`}</span>}</h2>
+          <h2>Job description of the position {j && <span className={`badge ${j.status === "approved" ? "ok" : "warn"}`}>{j.status === "approved" ? `Approved · v${j.version}` : `Draft · v${j.version}`}</span>}</h2>
           {!j ? (hr ? <>
             <p className="muted">The system writes a complete JD from this requisition — purpose, responsibilities, KPIs, must-have competencies and qualification. You edit and approve it.</p>
             <ActionForm action={writeJd} submitLabel="Write the JD" hidden={{ requisition_id: r.id }} className="formgrid">

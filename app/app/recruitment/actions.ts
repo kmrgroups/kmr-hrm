@@ -13,6 +13,7 @@ import { normalizeIndianMobile, isValidEmail } from "@/lib/validators";
 import { loadSetup } from "@/lib/payroll/service";
 import { inr } from "@/lib/payroll/compute";
 import { draftJd } from "@/lib/recruit/jd";
+import { currentJd, ensurePosition, writeSheetFromJd } from "@/lib/qms/positions";
 import { breakupForCtc, breakupForGross } from "@/lib/recruit/offer";
 import { offerLetterPdf } from "@/lib/recruit/offer-letter";
 import { buildIcs } from "@/lib/recruit/ics";
@@ -56,30 +57,41 @@ function reqFields(f: FormData) {
     required_by: isDay(str(f, "required_by")) ? str(f, "required_by") : null, location: opt(f, "location", 120),
     notice_max_days: numOrNull(f, "notice_max_days"), notes: opt(f, "notes", 2000),
   };
-  if (r.title.length < 2) throw new Error("Give the role a title (e.g. Quality Engineer).");
+  if (r.title.length < 2) throw new Error("Give the position (e.g. Calibration Incharge).");
+  if (!r.department_id) throw new Error("Choose the department — the position is Position + Role + Department.");
   for (const k of ["ctc_min", "ctc_max", "exp_min", "exp_max", "notice_max_days"] as const) if (Number.isNaN(r[k] as number)) throw new Error("Numbers only in salary, experience and notice.");
   if (r.ctc_min != null && r.ctc_max != null && r.ctc_max < r.ctc_min) throw new Error("The salary range's maximum is below its minimum.");
   if (r.exp_min != null && r.exp_max != null && r.exp_max < r.exp_min) throw new Error("The experience range's maximum is below its minimum.");
   return r;
 }
 
+/** the requisition's position (Position + Role + Department), created the first time it is used */
+async function positionFor(tenantId: string, userId: string, r: { title: string; department_id: string | null }, f: FormData) {
+  const db = createAdminClient();          // a manager may raise a requisition; positions are kept by HR
+  const { data: dep } = r.department_id ? await db.from("departments").select("name").eq("id", r.department_id).eq("tenant_id", tenantId).maybeSingle() : { data: null };
+  return ensurePosition(db, tenantId, { title: r.title, role: opt(f, "role", 160), department_id: r.department_id, department: dep?.name }, userId);
+}
+const chosenCompetencies = (f: FormData) => f.getAll("competency").map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 20);
+
 export async function createRequisition(_: ActionState, form: FormData): Promise<ActionState> {
   let id = "";
   try {
     const { user, tenant } = await assertRole(RAISE);
     const r = reqFields(form);
+    const position_id = await positionFor(tenant.id, user.id, r, form);
     const db = await createClient();
     const hr = hasRole(user, ["hr_manager", "hr_executive"]);
     const st = await recruitSettings(db, tenant.id);
     const status = hr ? "approved" : st.req_approval ? "pending" : "approved";
     const ref = await nextRef(createAdminClient(), tenant.id, "requisitions", "REQ");
-    const { data, error } = await db.from("requisitions").insert({ tenant_id: tenant.id, ref_no: ref, ...r, status, raised_by: user.id, raised_by_name: user.full_name,
+    const { data, error } = await db.from("requisitions").insert({ tenant_id: tenant.id, ref_no: ref, ...r, position_id, status, raised_by: user.id, raised_by_name: user.full_name,
       approved_by: status === "approved" ? user.id : null, approved_at: status === "approved" ? new Date().toISOString() : null }).select("id").single();
     if (error) return { error: error.message };
     id = data.id;
-    if (hr) await attachJd(db, tenant.id, user.id, id, false);
+    const how = hr ? await attachJd(db, tenant.id, user.id, id, false, null, chosenCompetencies(form)) : null;
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "requisition.raised", entity: "requisitions", entityId: id, data: { ref, status } });
-    await setFlash({ ok: hr ? `Requisition ${ref} created. A job description was drafted for you — check it, then approve it and open the role.` : status === "pending" ? `Requisition ${ref} sent to HR for approval.` : `Requisition ${ref} raised.` });
+    await setFlash({ ok: hr ? (how === "reused" ? `Requisition ${ref} created. The position's approved job description is used — open the role when ready.`
+      : `Requisition ${ref} created. A job description was written for the position — check it, edit if needed, approve it and open the role.`) : status === "pending" ? `Requisition ${ref} sent to HR for approval.` : `Requisition ${ref} raised.` });
   } catch (e) { return fail(e); }
   redirect(`/app/recruitment/requisitions/${id}`);
 }
@@ -89,8 +101,9 @@ export async function updateRequisition(_: ActionState, form: FormData): Promise
     const { user, tenant } = await assertRole(RAISE);
     const id = uuid(form, "id"); if (!id) return { error: "Missing requisition." };
     const r = reqFields(form);
+    const position_id = await positionFor(tenant.id, user.id, r, form);
     const db = await createClient();
-    const { error, count } = await db.from("requisitions").update(r, { count: "exact" }).eq("id", id);
+    const { error, count } = await db.from("requisitions").update({ ...r, position_id }, { count: "exact" }).eq("id", id);
     if (error) return { error: error.message };
     if (!count) return { error: "You can change this requisition only while it is waiting for approval." };
     const n = await rescoreRequisition(db, id);
@@ -141,18 +154,22 @@ export async function setPublished(_: ActionState, form: FormData): Promise<Acti
 }
 
 // ================================================================== job descriptions
-/** a JD for the requisition: the last approved JD of the same designation (reused), else a fresh draft */
-async function attachJd(db: Awaited<ReturnType<typeof createClient>>, tenantId: string, userId: string, reqId: string, fresh: boolean, family?: string | null) {
-  const { data: r } = await db.from("requisitions").select("*").eq("id", reqId).single();
+/** a JD for the requisition: the position's approved JD (reused), else a fresh draft written for the position */
+async function attachJd(db: Awaited<ReturnType<typeof createClient>>, tenantId: string, userId: string, reqId: string, fresh: boolean, family?: string | null, competencies: string[] = []) {
+  const { data: r } = await db.from("requisitions").select("*, position:positions(id,title,role)").eq("id", reqId).single();
   if (!r) throw new Error("Requisition not found.");
-  if (!fresh && r.designation_id) {
-    const { data: prev } = await db.from("job_descriptions").select("id").eq("designation_id", r.designation_id).eq("status", "approved").order("version", { ascending: false }).limit(1);
-    if (prev?.[0]) { await db.from("requisitions").update({ jd_id: prev[0].id }).eq("id", reqId); return "reused"; }
+  const pos = (Array.isArray(r.position) ? r.position[0] : r.position) as { id: string; title: string; role: string | null } | null;
+  if (!fresh && pos) {
+    const prev = await currentJd(db as never, pos.id);
+    if (prev) { await db.from("requisitions").update({ jd_id: prev.id }).eq("id", reqId); return "reused"; }
   }
   const n = await names(db, r);
   const { data: t } = await db.from("tenants").select("name").eq("id", tenantId).maybeSingle();
-  const d = draftJd({ title: r.title, designation: n.designation, department: n.department, plant: n.plant, company: t?.name, family, expMin: r.exp_min, expMax: r.exp_max, location: r.location });
-  const { data: jd, error } = await db.from("job_descriptions").insert({ tenant_id: tenantId, designation_id: r.designation_id, created_by: userId, status: "draft", ...d }).select("id").single();
+  const d = draftJd({ title: r.title, designation: null, department: n.department, plant: n.plant, company: t?.name, family, expMin: r.exp_min, expMax: r.exp_max,
+    location: r.location, role: pos?.role, competencies });
+  const { data: last } = pos ? await db.from("job_descriptions").select("version").eq("position_id", pos.id).order("version", { ascending: false }).limit(1) : { data: null };
+  const { data: jd, error } = await db.from("job_descriptions").insert({ tenant_id: tenantId, position_id: pos?.id ?? null, designation_id: r.designation_id, created_by: userId, status: "draft",
+    version: (last?.[0]?.version ?? 0) + 1, ...d }).select("id").single();
   if (error) throw new Error(error.message);
   await db.from("requisitions").update({ jd_id: jd.id }).eq("id", reqId);
   return "drafted";
@@ -166,7 +183,7 @@ export async function writeJd(_: ActionState, form: FormData): Promise<ActionSta
     const how = await attachJd(db, tenant.id, user.id, reqId, form.get("fresh") === "1", opt(form, "family", 30));
     await rescoreRequisition(db, reqId);
     revalidatePath(`/app/recruitment/requisitions/${reqId}`);
-    return done(how === "reused" ? "The approved JD of this designation is reused. Edit it if this opening differs." : "A new job description was drafted. Check and edit it, then approve it.");
+    return done(how === "reused" ? "The position's approved job description is reused. Edit it if this opening differs." : "A new job description was written for the position. Check and edit it, then approve it.");
   } catch (e) { return fail(e); }
 }
 
@@ -186,7 +203,7 @@ export async function saveJd(_: ActionState, form: FormData): Promise<ActionStat
     let jdId = cur.id;
     if (cur.status === "approved") {
       // an approved JD is a controlled document: changes make a new version (the old one stays as it was)
-      const { data: nv, error } = await db.from("job_descriptions").insert({ tenant_id: tenant.id, designation_id: cur.designation_id, family: cur.family, ...fields,
+      const { data: nv, error } = await db.from("job_descriptions").insert({ tenant_id: tenant.id, designation_id: cur.designation_id, position_id: cur.position_id, family: cur.family, ...fields,
         version: cur.version + 1, status: "draft", created_by: user.id }).select("id").single();
       if (error) return { error: error.message };
       jdId = nv.id;
@@ -198,6 +215,7 @@ export async function saveJd(_: ActionState, form: FormData): Promise<ActionStat
     const n = reqId ? await rescoreRequisition(db, reqId) : 0;
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "jd.saved", entity: "job_descriptions", entityId: jdId });
     revalidatePath(`/app/recruitment/requisitions/${reqId}`);
+    if (cur.position_id) revalidatePath(`/app/qms/positions/${cur.position_id}`);
     return { ok: `${cur.status === "approved" ? `Saved as version ${cur.version + 1} (draft) — approve it to use it.` : "Saved."}${n ? ` ${n} candidate${n > 1 ? "s" : ""} scored again.` : ""}` };
   } catch (e) { return fail(e); }
 }
@@ -207,15 +225,24 @@ export async function approveJd(_: ActionState, form: FormData): Promise<ActionS
     const { user, tenant } = await assertRole(HR);
     const id = uuid(form, "id"), reqId = uuid(form, "requisition_id");
     const db = await createClient();
-    const { data: jd } = await db.from("job_descriptions").select("id,designation_id,version").eq("id", id!).single();
+    const { data: jd } = await db.from("job_descriptions").select("id,designation_id,position_id,version").eq("id", id!).single();
     if (!jd) return { error: "Job description not found." };
-    // the older approved versions of this designation are archived
-    if (jd.designation_id) await db.from("job_descriptions").update({ status: "archived" }).eq("designation_id", jd.designation_id).eq("status", "approved").neq("id", jd.id);
+    // the older approved versions of the same position are archived
+    if (jd.position_id) await db.from("job_descriptions").update({ status: "archived" }).eq("position_id", jd.position_id).eq("status", "approved").neq("id", jd.id);
+    else if (jd.designation_id) await db.from("job_descriptions").update({ status: "archived" }).eq("designation_id", jd.designation_id).eq("status", "approved").neq("id", jd.id);
     const { error } = await db.from("job_descriptions").update({ status: "approved", approved_by: user.id, approved_at: new Date().toISOString() }).eq("id", jd.id);
     if (error) return { error: error.message };
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "jd.approved", entity: "job_descriptions", entityId: jd.id, data: { version: jd.version } });
+    // from the approved JD, the position's R&R sheet (roles, responsibilities, authority, competency, KPI) is written as a draft
+    let sheet = "";
+    if (jd.position_id) {
+      const { data: rr } = await db.from("rr_roles").select("id").eq("position_id", jd.position_id).maybeSingle();
+      if (!rr) { await writeSheetFromJd(db as never, tenant.id, jd.position_id); sheet = " The position's R&R sheet (roles, responsibilities, authority, competency, KPI) is written from it — review and approve it in QMS › Positions."; }
+      else sheet = " The position already has an R&R sheet; refresh it from this JD in QMS › Positions if needed.";
+    }
     revalidatePath(`/app/recruitment/requisitions/${reqId}`);
-    return done(`Job description version ${jd.version} approved.`);
+    if (jd.position_id) revalidatePath(`/app/qms/positions/${jd.position_id}`);
+    return done(`Job description version ${jd.version} approved.${sheet}`);
   } catch (e) { return fail(e); }
 }
 

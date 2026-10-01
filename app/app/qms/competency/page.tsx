@@ -8,85 +8,67 @@ import { p } from "@/lib/base-path";
 import { COMP_CATEGORIES, COMP_LEVELS, competencyCoverage, competencyGaps } from "@/lib/qms/rules";
 import { QmsTabs, Clause } from "../ui";
 import { LevelGrid } from "../LevelGrid";
-import { people, masters } from "../data";
-import { saveCompetency, saveLevels, saveRequirements } from "../actions";
+import { people, positions } from "../data";
+import { saveCompetency, saveLevels } from "../actions";
 
 export const metadata = { title: "Competency mapping" };
 
-export default async function CompetencyPage({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
+export default async function CompetencyPage({ searchParams }: { searchParams: Promise<{ pos?: string }> }) {
   const session = await requireRole([...HR_ROLES, "manager"]);
   const hr = hasRole(session.user, HR_ROLES);
-  const { d } = await searchParams;
+  const { pos: posQ } = await searchParams;
   const db = await createClient();
-  const [ppl, m, { data: comps }, { data: req }, assessed] = await Promise.all([
-    people(db), masters(db),
+  const [ppl, posAll, { data: comps }, { data: req }, assessed] = await Promise.all([
+    people(db), positions(db),
     db.from("competencies").select("id,name,category,description,active,sample").order("category").order("name"),
-    db.from("role_competencies").select("designation_id,competency_id,required_level"),
+    db.from("role_competencies").select("position_id,competency_id,required_level").not("position_id", "is", null),
     fetchAll<{ employee_id: string; competency_id: string; level: number; assessed_on: string; assessed_by_name: string | null }>((a, b) =>
       db.from("employee_competencies").select("employee_id,competency_id,level,assessed_on,assessed_by_name").range(a, b)),
   ]);
-  const requirements = req ?? [];
-  const used = m.designations.filter((x) => ppl.some((e) => e.designation_id === x.id) || requirements.some((r) => r.designation_id === x.id));
-  const desig = (d && m.designations.find((x) => x.id === d)) || used[0] || m.designations[0];
-  const roleReq = requirements.filter((r) => r.designation_id === desig?.id);
-  const team = ppl.filter((e) => e.designation_id === desig?.id);
+  const requirements = (req ?? []) as { position_id: string; competency_id: string; required_level: number }[];
+  const used = posAll.filter((x) => requirements.some((r) => r.position_id === x.id) || ppl.some((e) => e.position_id === x.id));
+  const pos = used.find((x) => x.id === posQ) ?? used[0];
+  const roleReq = requirements.filter((r) => r.position_id === pos?.id).sort((a, b) => b.required_level - a.required_level);
+  const team = ppl.filter((e) => e.position_id === pos?.id);
   const values: Record<string, number> = {};
   for (const a of assessed) values[`${a.employee_id}|${a.competency_id}`] = a.level;
   const gaps = competencyGaps(team, requirements, assessed);
   const name = (id: string) => comps?.find((c) => c.id === id)?.name ?? "—";
-  const activeComps = (comps ?? []).filter((c) => c.active);
 
   return (
     <AppShell session={session} active="/app/qms">
       <div className="pagehead"><div><h1>Competency mapping <Clause>IATF 7.2.1 · ISO 9001 7.2</Clause></h1>
-        <p>The level each role needs, against each person&apos;s assessed level. Gaps become training needs.</p></div></div>
+        <p>Each person holding a position, assessed against the competency levels in the position&apos;s R&amp;R sheet. Gaps become training needs.</p></div>
+        {pos && <a className="btn secondary" target="_blank" rel="noreferrer" href={p(`/api/qms/sheet?kind=mapping&position=${pos.id}`)}>Competency mapping sheet (PDF)</a>}</div>
       <QmsTabs active="competency" hr={hr} />
 
       <div className="tabs" style={{ marginBottom: 12 }}>{used.map((x) => {
-        const t = ppl.filter((e) => e.designation_id === x.id);
-        return <a key={x.id} className={x.id === desig?.id ? "active" : ""} href={p(`/app/qms/competency?d=${x.id}`)}>{x.name} <span className="muted">({competencyCoverage(t, requirements, assessed)}%)</span></a>;
+        const t = ppl.filter((e) => e.position_id === x.id);
+        return <a key={x.id} className={x.id === pos?.id ? "active" : ""} href={p(`/app/qms/competency?pos=${x.id}`)}>{x.title}{x.role ? <span className="muted"> · {x.role}</span> : null} <span className="muted">({competencyCoverage(t, requirements, assessed)}%)</span></a>;
       })}</div>
 
-      {!desig ? <div className="card"><Empty>Add designations under Plants &amp; departments first.</Empty></div> : (
+      {!pos ? <div className="card"><Empty>No positions with competencies yet. They come from the R&amp;R sheet of each position (QMS › Positions &amp; R&amp;R).</Empty></div> : (
         <>
           <div className="card">
-            <h2>{desig.name}: people against the role&apos;s needs</h2>
-            {!roleReq.length ? <Empty>No competencies set for {desig.name} yet.{hr ? " Set them below." : ""}</Empty>
-              : !team.length ? <Empty>Nobody holds this designation at present.</Empty> : (
+            <h2><span>{pos.title}{pos.role ? ` — ${pos.role}` : ""}{pos.department ? ` (${pos.department})` : ""}</span> <a style={{ fontSize: 13, fontWeight: 400 }} href={p(`/app/qms/positions/${pos.id}`)}>R&amp;R sheet ›</a></h2>
+            {!roleReq.length ? <Empty>The position&apos;s R&amp;R sheet has no competencies yet.</Empty>
+              : !team.length ? <Empty>Nobody holds this position yet — give it on the position&apos;s page or on the employee&apos;s record.</Empty> : (
                 <>
                   <LevelGrid kind="competency" action={saveLevels} labels={COMP_LEVELS} values={values}
-                    rows={team.map((e) => ({ id: e.id, label: e.name, sub: [e.code, e.department].filter(Boolean).join(" · ") }))}
+                    rows={team.map((e) => ({ id: e.id, label: e.name, sub: [e.code, e.designation].filter(Boolean).join(" · ") }))}
                     cols={roleReq.map((r) => ({ id: r.competency_id, label: name(r.competency_id), required: r.required_level }))} />
-                  <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Levels: {COMP_LEVELS.map((l, i) => `${i} ${l}`).join(" · ")}. Red cells are below the role&apos;s need.</p>
+                  <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>Levels: {COMP_LEVELS.map((l, i) => `${i} ${l}`).join(" · ")}. Red cells are below the position&apos;s need.</p>
                 </>)}
           </div>
 
-          <div className="grid two">
-            <div className="card">
-              <h2>Gaps ({gaps.length})</h2>
-              {!gaps.length ? <Empty>No gaps: everyone meets the role&apos;s needs.</Empty> : (
-                <div className="tablewrap" style={{ border: 0 }}><table>
-                  <thead><tr><th>Person</th><th>Competency</th><th className="num">Has</th><th className="num">Needs</th></tr></thead>
-                  <tbody>{gaps.sort((a, b) => b.gap - a.gap).map((g) => <tr key={`${g.employee_id}${g.competency_id}`}>
-                    <td>{team.find((e) => e.id === g.employee_id)?.name}</td><td>{name(g.competency_id)}</td><td className="num">{g.actual}</td><td className="num"><b>{g.required}</b></td></tr>)}</tbody>
-                </table></div>)}
-              {gaps.length > 0 && hr && <p className="muted" style={{ marginBottom: 0 }}>On <a href={p("/app/qms/needs")}>Training needs</a>, “Find training needs” turns gaps into needs with the right programme.</p>}
-            </div>
-            {hr && (
-              <div className="card">
-                <h2>What {desig.name} needs</h2>
-                <ActionForm action={saveRequirements} submitLabel="Save the requirements" hidden={{ designation_id: desig.id }}>
-                  {Object.entries(COMP_CATEGORIES).map(([cat, label]) => {
-                    const list = activeComps.filter((c) => c.category === cat);
-                    if (!list.length) return null;
-                    return (<fieldset key={cat} className="reqset"><legend>{label}</legend>
-                      {list.map((c) => { const cur = roleReq.find((r) => r.competency_id === c.id)?.required_level ?? 0; return (
-                        <label key={c.id} className="reqrow"><span title={c.description ?? ""}>{c.name}</span>
-                          <select name={`req_${c.id}`} defaultValue={String(cur)}><option value="0">Not needed</option>{[1, 2, 3, 4].map((l) => <option key={l} value={l}>{l} — {COMP_LEVELS[l]}</option>)}</select></label>); })}
-                    </fieldset>);
-                  })}
-                </ActionForm>
-              </div>)}
+          <div className="card">
+            <h2>Gaps ({gaps.length}){gaps.length > 0 && hr && <a className="btn secondary small" href={p("/app/qms/needs")}>Turn gaps into training needs ›</a>}</h2>
+            {!gaps.length ? <Empty>No gaps: everyone meets the position&apos;s needs.</Empty> : (
+              <div className="tablewrap" style={{ border: 0 }}><table>
+                <thead><tr><th>Name</th><th>Designation</th><th>Competency</th><th className="num">Has</th><th className="num">Needs</th></tr></thead>
+                <tbody>{gaps.sort((a, b) => b.gap - a.gap).map((g) => { const e = team.find((x) => x.id === g.employee_id); return <tr key={`${g.employee_id}${g.competency_id}`}>
+                  <td>{e?.name}</td><td className="muted">{e?.designation ?? "—"}</td><td>{name(g.competency_id)}</td><td className="num">{g.actual}</td><td className="num"><b>{g.required}</b></td></tr>; })}</tbody>
+              </table></div>)}
           </div>
         </>
       )}

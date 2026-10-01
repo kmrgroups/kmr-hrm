@@ -13,6 +13,7 @@ import { applyCredits } from "@/lib/leave/service";
 import { saveNightlyBackup } from "@/lib/data-tools";
 import { qmsDaily } from "@/lib/qms/daily";
 import { engageDaily } from "@/lib/engage/send";
+import { complianceDaily } from "@/lib/compliance/service";
 
 export const maxDuration = 60;
 
@@ -22,6 +23,7 @@ export const maxDuration = 60;
 //  • finalises attendance for the last two days (marks absentees, picks up late device uploads)
 //  • adds leave credits that have fallen due (yearly at the start of the leave year, monthly accruals)
 //  • QMS: reminds people of tomorrow's training, and tells supervisors which training effectiveness checks are due
+//  • compliance: statutory items' occurrences; one reminder e-mail per owner (due soon / overdue / documents due for review)
 //  • engagement: scheduled announcements go out, surveys open / close on their dates, reminders before a survey closes
 export async function GET(req: Request) {
   if (!env.cronSecret || req.headers.get("authorization") !== `Bearer ${env.cronSecret}`) {
@@ -86,5 +88,6 @@ export async function GET(req: Request) {
   }
   const qms = await qmsDaily(db).catch((e) => { console.error("[cron] qms", e); return { error: (e as Error).message }; });
   const engage = await engageDaily(db).catch((e) => { console.error("[cron] engage", e); return { error: (e as Error).message }; });
-  return NextResponse.json({ expired: expired?.length ?? 0, reminders: sent, attendance, qms, engage });
+  const compliance = await complianceDaily(db).catch((e) => { console.error("[cron] compliance", e); return { error: (e as Error).message }; });
+  return NextResponse.json({ expired: expired?.length ?? 0, reminders: sent, attendance, qms, engage, compliance });
 }

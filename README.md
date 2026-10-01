@@ -92,6 +92,16 @@ Sample data (Grand Master) includes all of this, joined to the sample people.
 
 Sample data includes all of it (announcements, an engagement survey with 18 anonymous answers, an open pulse, eight suggestions at every stage, recognitions).
 
+**Phase 5C — Policies & compliance** (free; run `supabase/migrations/0012_compliance.sql`) — HRM › Policies & compliance, and *Policies* in each person's portal. ISO 9001 7.5.
+
+| Area | What works |
+| --- | --- |
+| Documents | Policies, procedures, work instructions, formats, manuals: doc. no. (HR-POL-01 …), revision, prepared by / approved by, effective date, review due; text written in the HRM and / or a PDF; a new revision makes the old one obsolete (kept with its history); withdraw; print view with the controlled-copy header; **Master list of documents** (PDF); the free AI can write a first draft from HR's points — it writes [to be filled] instead of inventing details, and a draft with [to be filled] left in it cannot be approved |
+| Policies | Read in the portal; each person acknowledges each revision; a new revision asks again; who has / has not; e-mail + WhatsApp when issued |
+| Compliance register | A starting list (Karnataka): PF, ESI, PT, TDS deposit, Form 24Q, Form 16, LWF, Bonus Form D, Factories Act returns, POSH annual report, minimum-wage revision, licence renewals (factory, shops & establishments, contract labour, fire NOC, PCB consent) — **the company checks the dates with its consultant and edits them**. Each occurrence's due date by fixed rules; done with the reference no. and proof (PDF / photo), or "does not apply" with the reason; done late shown; licence renewal asks for the new valid-until date; payroll staff can use it too |
+| Reminders | One e-mail a day to whoever looks after an item (or the HR managers): falling due within its reminder days, newly overdue, documents due for review |
+| Overview | Overdue, due in 30 days, on-time % (12 months), licences to renew, documents due for review, policy acknowledgement % |
+
 **Free AI in the QMS** (run `supabase/migrations/0010_ai.sql`; optional keys — see `docs/env.example.txt`)
 
 The AI only drafts and ranks; the HRM's rules decide what is a gap, a need or a finding, and a named person approves

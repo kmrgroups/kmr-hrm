@@ -39,7 +39,9 @@ export type NotificationEvent =
   | "survey_invite"
   | "survey_reminder"
   | "recognition_received"
-  | "suggestion_update";
+  | "suggestion_update"
+  | "policy_published"
+  | "compliance_digest";
 
 export interface MessageTemplate {
   subject: string;
@@ -80,12 +82,14 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   survey_reminder: "Survey reminder, 2 days before it closes (to those who have not answered)",
   recognition_received: "Recognition received (to employee)",
   suggestion_update: "Your suggestion: decision / implemented (to employee)",
+  policy_published: "Policy to read and acknowledge (to employees)",
+  compliance_digest: "Compliance due / overdue and documents due for review (to HR)",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
 export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready",
   "application_received", "interview_panel", "interview_update", "recruit_regret", "offer_response",
-  "effectiveness_due", "rr_published", "survey_reminder", "recognition_received", "suggestion_update"];
+  "effectiveness_due", "rr_published", "survey_reminder", "recognition_received", "suggestion_update", "compliance_digest"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -608,6 +612,36 @@ Thank you for your good work. It is on the recognition wall in your portal.
     whatsapp: `Well done! {{giver}} recognised you for {{category}}: "{{message}}" — {{company}}`,
     wa_template: "hrm_recognition",
     wa_params: ["giver", "category", "message", "company"],
+  },
+  policy_published: {
+    subject: "Please read: {{title}} ({{revision}})",
+    email: `Dear {{name}},
+
+{{company}} has published "{{title}}" ({{revision}}), effective {{effective}}.
+
+{{change}}
+
+Please read it and acknowledge in your portal.
+
+[[Read and acknowledge|{{link}}]]
+
+HR, {{company}}`,
+    whatsapp: `{{company}}: please read and acknowledge the policy "{{title}}" in your portal: {{link}}`,
+    wa_template: "hrm_policy_published",
+    wa_params: ["company", "title", "link"],
+  },
+  compliance_digest: {
+    subject: "Compliance: {{headline}}",
+    email: `Dear {{name}},
+
+{{list}}
+
+[[Open the compliance register|{{link}}]]
+
+KMR HRM — {{company}}`,
+    whatsapp: `Compliance: {{headline}}. {{link}}`,
+    wa_template: "hrm_compliance_digest",
+    wa_params: ["headline", "link"],
   },
   suggestion_update: {
     subject: "Your suggestion {{ref}}: {{status}}",

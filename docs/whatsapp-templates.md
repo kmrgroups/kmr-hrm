@@ -143,3 +143,11 @@ Parameters: company, announcement title, portal link.
 Parameters: company, survey title, ", open until 8 Oct" (or blank), survey link.
 
 The survey reminder, "recognition received" and "your suggestion: decision" go by e-mail only.
+
+## Policies & compliance (Phase 5C)
+
+### hrm_policy_published (Utility)
+
+> {{1}}: please read and acknowledge the policy "{{2}}" in your portal: {{3}}
+
+Parameters: company, policy title, link. Until it is approved by Meta the message goes by e-mail. The compliance reminder to HR goes by e-mail only.

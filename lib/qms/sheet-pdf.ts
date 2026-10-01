@@ -212,3 +212,6 @@ export async function kpiSheetPdf(tenant: Tenant, s: { position: string; role: s
   }
   return d.pdf.save();
 }
+
+/** the same landscape header (logo, company, title, clauses, doc no. / revision / date / page) for other registers */
+export { setup as landscapeSheet, safe as pdfSafe, fmt as pdfDate };

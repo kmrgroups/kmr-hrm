@@ -46,12 +46,16 @@ export default async function MyPortal() {
   }
 
   // notices and surveys waiting for this person (row-level security: only those meant for him)
-  const [{ data: annsDue }, { data: myReads }, { data: openSurveys }, { data: answeredS }] = await Promise.all([
+  const [{ data: annsDue }, { data: myReads }, { data: openSurveys }, { data: answeredS }, { data: polDocs }, { data: polAcks }] = await Promise.all([
     supabase.from("announcements").select("id,needs_ack,expires_on").eq("status", "published").limit(100),
     supabase.from("announcement_reads").select("announcement_id,acknowledged_at").eq("employee_id", id),
     supabase.from("surveys").select("id,opens_on,closes_on").eq("status", "open"),
     supabase.from("survey_participants").select("survey_id").eq("employee_id", id),
+    supabase.from("documents").select("id,document_versions(id,status)").eq("employee_access", true).eq("needs_ack", true),
+    supabase.from("document_acks").select("version_id").eq("employee_id", id),
   ]);
+  const ackedV = new Set((polAcks ?? []).map((a) => a.version_id));
+  const policiesDue = (polDocs ?? []).filter((d) => (d.document_versions as { id: string; status: string }[]).some((v) => v.status === "approved" && !ackedV.has(v.id))).length;
   const readMap = new Map((myReads ?? []).map((r) => [r.announcement_id, r]));
   const newNotices = (annsDue ?? []).filter((a) => !(a.expires_on && a.expires_on < today) && (a.needs_ack ? !readMap.get(a.id)?.acknowledged_at : !readMap.has(a.id)));
   const toAck = newNotices.filter((a) => a.needs_ack).length;
@@ -83,6 +87,11 @@ export default async function MyPortal() {
         </div>
       </div>
 
+      {policiesDue > 0 && (
+        <a className="alert warn" href={p("/me/policies")} style={{ display: "block", marginBottom: 12, textDecoration: "none" }}>
+          <b>{policiesDue} polic{policiesDue === 1 ? "y" : "ies"}</b> to read and acknowledge. Open ›
+        </a>
+      )}
       {(newNotices.length > 0 || surveysDue > 0) && (
         <a className="alert info" href={p("/me/engage")} style={{ display: "block", marginBottom: 16, textDecoration: "none" }}>
           {newNotices.length > 0 && <><b>{newNotices.length} new notice{newNotices.length === 1 ? "" : "s"}</b>{toAck ? ` (${toAck} to acknowledge)` : ""}. </>}

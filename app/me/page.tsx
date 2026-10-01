@@ -45,6 +45,18 @@ export default async function MyPortal() {
     live = { earned: Math.round((Number(sal.monthly_gross) * paid) / mb.days.length), paid, upto: upto.length, total: Number(sal.monthly_gross) };
   }
 
+  // notices and surveys waiting for this person (row-level security: only those meant for him)
+  const [{ data: annsDue }, { data: myReads }, { data: openSurveys }, { data: answeredS }] = await Promise.all([
+    supabase.from("announcements").select("id,needs_ack,expires_on").eq("status", "published").limit(100),
+    supabase.from("announcement_reads").select("announcement_id,acknowledged_at").eq("employee_id", id),
+    supabase.from("surveys").select("id,opens_on,closes_on").eq("status", "open"),
+    supabase.from("survey_participants").select("survey_id").eq("employee_id", id),
+  ]);
+  const readMap = new Map((myReads ?? []).map((r) => [r.announcement_id, r]));
+  const newNotices = (annsDue ?? []).filter((a) => !(a.expires_on && a.expires_on < today) && (a.needs_ack ? !readMap.get(a.id)?.acknowledged_at : !readMap.has(a.id)));
+  const toAck = newNotices.filter((a) => a.needs_ack).length;
+  const surveysDue = (openSurveys ?? []).filter((s) => (!s.opens_on || s.opens_on <= today) && (!s.closes_on || s.closes_on >= today) && !(answeredS ?? []).some((x) => x.survey_id === s.id)).length;
+
   const urls = await signedDocUrls([emp.photo_path, ...(docs ?? []).map((d) => d.file_path)].filter(Boolean) as string[], 900);
   const name = fullName(emp);
   const des = one(emp.designation)?.name;
@@ -70,6 +82,13 @@ export default async function MyPortal() {
           </div>
         </div>
       </div>
+
+      {(newNotices.length > 0 || surveysDue > 0) && (
+        <a className="alert info" href={p("/me/engage")} style={{ display: "block", marginBottom: 16, textDecoration: "none" }}>
+          {newNotices.length > 0 && <><b>{newNotices.length} new notice{newNotices.length === 1 ? "" : "s"}</b>{toAck ? ` (${toAck} to acknowledge)` : ""}. </>}
+          {surveysDue > 0 && <><b>{surveysDue} survey{surveysDue === 1 ? "" : "s"}</b> waiting for your opinion. </>}Open ›
+        </a>
+      )}
 
       {live && (
         <div className="card stat" style={{ marginBottom: 16 }}>

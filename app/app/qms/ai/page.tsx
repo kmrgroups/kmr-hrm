@@ -13,7 +13,7 @@ import { acceptProgram, checkAi, rejectProgram, setAiEnabled, writeProgramQuiz }
 export const metadata = { title: "QMS — AI & review" };
 export const maxDuration = 60;
 
-const AGENTS: Record<string, string> = { jd: "Job description", sheet: "R&R sheet", programmes: "Training programmes", quiz: "Test questions", qms_agent: "QMS check", check: "Connection check" };
+const AGENTS: Record<string, string> = { jd: "Job description", sheet: "R&R sheet", programmes: "Training programmes", quiz: "Test questions", qms_agent: "QMS check", check: "Connection check", announcement: "Announcement", survey: "Survey comments" };
 const when = (t: string) => new Date(t).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
 
 export default async function AiPage() {

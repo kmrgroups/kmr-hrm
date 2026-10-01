@@ -26,6 +26,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/approvals", label: "Approvals", icon: "checklist", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/recruitment", label: "Recruitment", icon: "send", show: hr || hasRole(user, ["manager", "interviewer"]) },
     { href: "/app/qms", label: "QMS & training", icon: "award", show: hr || hasRole(user, ["manager"]) },
+    { href: "/app/engage", label: "Engagement", icon: "heart", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/onboarding", label: "Onboarding", icon: "inbox", show: hr },
     { href: "/app/id-cards", label: "ID cards", icon: "card", show: hr },
     { href: "/app/notifications", label: "Messages sent", icon: "bell", show: hr },
@@ -48,6 +49,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/me/leave", label: "My leave", icon: "calendar", show: !!user.employee_id },
     { href: "/me/payslips", label: "My payslips", icon: "download", show: !!user.employee_id },
     { href: "/me/development", label: "My skills & training", icon: "award", show: !!user.employee_id },
+    { href: "/me/engage", label: "Notices & ideas", icon: "heart", show: !!user.employee_id },
     { href: "/account", label: "My account", icon: "key", show: !platform },
     { href: "/help", label: "Help & support", icon: "inbox", show: true },
   ];

@@ -125,3 +125,21 @@ Parameters: company, training, date and time, venue.
 Parameters: company, training, time, venue.
 
 "Training effectiveness to evaluate" (to supervisors) and "Roles & responsibilities to acknowledge" go by e-mail only.
+
+## Engagement (Phase 5B)
+
+Submit these two in Meta Business Manager (category **Utility**). Until they are approved, the same messages go by e-mail.
+
+### hrm_announcement (Utility)
+
+> {{1}} — {{2}}. Read it in your portal: {{3}}
+
+Parameters: company, announcement title, portal link.
+
+### hrm_survey_invite (Utility)
+
+> {{1}}: please answer the survey "{{2}}" — a few minutes{{3}}. {{4}}
+
+Parameters: company, survey title, ", open until 8 Oct" (or blank), survey link.
+
+The survey reminder, "recognition received" and "your suggestion: decision" go by e-mail only.

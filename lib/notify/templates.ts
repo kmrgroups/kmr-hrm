@@ -34,7 +34,12 @@ export type NotificationEvent =
   | "training_invite"
   | "training_reminder"
   | "effectiveness_due"
-  | "rr_published";
+  | "rr_published"
+  | "announcement"
+  | "survey_invite"
+  | "survey_reminder"
+  | "recognition_received"
+  | "suggestion_update";
 
 export interface MessageTemplate {
   subject: string;
@@ -70,12 +75,17 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   training_reminder: "Training reminder, the day before (to employee)",
   effectiveness_due: "Training effectiveness to evaluate (to supervisor)",
   rr_published: "Roles & responsibilities to acknowledge (to employee)",
+  announcement: "Announcement (to employees)",
+  survey_invite: "Survey invitation (to employees)",
+  survey_reminder: "Survey reminder, 2 days before it closes (to those who have not answered)",
+  recognition_received: "Recognition received (to employee)",
+  suggestion_update: "Your suggestion: decision / implemented (to employee)",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
 export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready",
   "application_received", "interview_panel", "interview_update", "recruit_regret", "offer_response",
-  "effectiveness_due", "rr_published"];
+  "effectiveness_due", "rr_published", "survey_reminder", "recognition_received", "suggestion_update"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -538,5 +548,82 @@ HR, {{company}}`,
     whatsapp: `Your roles and responsibilities as {{designation}} are published. Please read and acknowledge: {{link}}`,
     wa_template: "hrm_rr_published",
     wa_params: ["designation", "link"],
+  },
+  announcement: {
+    subject: "{{title}}",
+    email: `Dear {{name}},
+
+{{body}}
+
+[[Open in your portal|{{link}}]]
+
+{{company}}`,
+    whatsapp: `{{company}} — {{title}}. Read it in your portal: {{link}}`,
+    wa_template: "hrm_announcement",
+    wa_params: ["company", "title", "link"],
+  },
+  survey_invite: {
+    subject: "Your opinion please: {{survey}}",
+    email: `Dear {{name}},
+
+We would like your honest opinion: "{{survey}}". It takes a few minutes{{until}}.
+
+{{privacy}}
+
+[[Answer the survey|{{link}}]]
+
+HR, {{company}}`,
+    whatsapp: `{{company}}: please answer the survey "{{survey}}" — a few minutes{{until}}. {{link}}`,
+    wa_template: "hrm_survey_invite",
+    wa_params: ["company", "survey", "until", "link"],
+  },
+  survey_reminder: {
+    subject: "Reminder: {{survey}} closes on {{closes_on}}",
+    email: `Dear {{name}},
+
+The survey "{{survey}}" closes on {{closes_on}}. If you have not answered yet, it takes only a few minutes.
+
+{{privacy}}
+
+[[Answer the survey|{{link}}]]
+
+HR, {{company}}`,
+    whatsapp: `Reminder: the survey "{{survey}}" closes on {{closes_on}}. {{link}}`,
+    wa_template: "hrm_survey_reminder",
+    wa_params: ["survey", "closes_on", "link"],
+  },
+  recognition_received: {
+    subject: "Well done, {{name}}! {{category}} recognition",
+    email: `Dear {{name}},
+
+{{giver}} has recognised you for {{category}}:
+
+"{{message}}"
+
+Thank you for your good work. It is on the recognition wall in your portal.
+
+[[See it in your portal|{{link}}]]
+
+{{company}}`,
+    whatsapp: `Well done! {{giver}} recognised you for {{category}}: "{{message}}" — {{company}}`,
+    wa_template: "hrm_recognition",
+    wa_params: ["giver", "category", "message", "company"],
+  },
+  suggestion_update: {
+    subject: "Your suggestion {{ref}}: {{status}}",
+    email: `Dear {{name}},
+
+Your suggestion "{{title}}" ({{ref}}) is now: {{status}}.
+
+{{note}}
+
+Thank you for helping us improve. Keep the ideas coming!
+
+[[See your suggestions|{{link}}]]
+
+{{company}}`,
+    whatsapp: `Your suggestion "{{title}}" is now: {{status}}. {{note}}`,
+    wa_template: "hrm_suggestion_update",
+    wa_params: ["title", "status", "note"],
   },
 };

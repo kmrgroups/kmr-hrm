@@ -80,6 +80,18 @@ Flow: Requisition → Job description → R&R sheet → Competency mapping → K
 
 Sample data (Grand Master) includes all of this, joined to the sample people.
 
+**Phase 5B — Engagement** (free; run `supabase/migrations/0011_engage.sql`) — HRM › Engagement, and *Notices & ideas* in each person's portal. IATF 16949 7.3.2.
+
+| Area | What works |
+| --- | --- |
+| Announcements | To everybody, a department or a plant; pinned; publish now or on a date; take off the board after a date; e-mail + WhatsApp; "please acknowledge" with who has / has not; the free AI can draft the wording from HR's points (HR checks it) |
+| Recognition | A wall everybody sees; managers recognise their team, colleagues thank each other from their portal, HR names the Employee of the month (one per person per month); an implemented suggestion recognises its author automatically; HR can hide one |
+| Suggestions / Kaizen | Employees send ideas from the portal (HR or the manager can enter one for someone without a login); New → Under review → Accepted → Implemented (what it gave, ₹ saving a year, before / after) or Not taken up (with the reason, which the person reads); e-mail at each decision; ideas waiting more than 7 days flagged; Kaizen board |
+| Surveys | Ready surveys (engagement, monthly pulse, canteen & transport, new joiner, exit) or your own; rating 1–5, 0–10 (eNPS), yes / no, a list, written; anonymous by default — answers carry no name and are kept apart from who answered, never in the audit trail; results and group breakdowns only from 5 answers; engagement index (% favourable) and eNPS; the free AI can summarise the comments (no names, phone numbers and e-mails taken out; HR marks it checked); invitations, a reminder 2 days before closing, closing on the date — all automatic |
+| Overview | Suggestions per 100 people, % implemented, saving, recognitions, latest survey; what needs attention (fixed rules) |
+
+Sample data includes all of it (announcements, an engagement survey with 18 anonymous answers, an open pulse, eight suggestions at every stage, recognitions).
+
 **Free AI in the QMS** (run `supabase/migrations/0010_ai.sql`; optional keys — see `docs/env.example.txt`)
 
 The AI only drafts and ranks; the HRM's rules decide what is a gap, a need or a finding, and a named person approves

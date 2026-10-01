@@ -151,3 +151,7 @@ The survey reminder, "recognition received" and "your suggestion: decision" go b
 > {{1}}: please read and acknowledge the policy "{{2}}" in your portal: {{3}}
 
 Parameters: company, policy title, link. Until it is approved by Meta the message goes by e-mail. The compliance reminder to HR goes by e-mail only.
+
+## Safety (Phase 5D)
+
+New reports to the safety officer, the action given to a person and the safety officer's daily list go by e-mail only.

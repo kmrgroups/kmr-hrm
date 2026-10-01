@@ -41,7 +41,10 @@ export type NotificationEvent =
   | "recognition_received"
   | "suggestion_update"
   | "policy_published"
-  | "compliance_digest";
+  | "compliance_digest"
+  | "safety_reported"
+  | "safety_action"
+  | "safety_digest";
 
 export interface MessageTemplate {
   subject: string;
@@ -84,12 +87,15 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   suggestion_update: "Your suggestion: decision / implemented (to employee)",
   policy_published: "Policy to read and acknowledge (to employees)",
   compliance_digest: "Compliance due / overdue and documents due for review (to HR)",
+  safety_reported: "Incident / near miss reported (to the safety officer)",
+  safety_action: "Safety action given to you (to the action owner)",
+  safety_digest: "Safety: overdue actions, reports not looked at, PPE and medical due (to the safety officer)",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
 export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready",
   "application_received", "interview_panel", "interview_update", "recruit_regret", "offer_response",
-  "effectiveness_due", "rr_published", "survey_reminder", "recognition_received", "suggestion_update", "compliance_digest"];
+  "effectiveness_due", "rr_published", "survey_reminder", "recognition_received", "suggestion_update", "compliance_digest", "safety_reported", "safety_action", "safety_digest"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -641,6 +647,51 @@ HR, {{company}}`,
 KMR HRM — {{company}}`,
     whatsapp: `Compliance: {{headline}}. {{link}}`,
     wa_template: "hrm_compliance_digest",
+    wa_params: ["headline", "link"],
+  },
+  safety_reported: {
+    subject: "{{kind}} reported: {{ref}} — {{area}}",
+    email: `{{kind}} reported by {{reporter}} on {{when}}.
+
+Where: {{area}}
+What happened: {{description}}
+{{action}}
+
+[[Open the report|{{link}}]]
+
+KMR HRM — {{company}}`,
+    whatsapp: `{{kind}} reported: {{ref}} at {{area}}. {{link}}`,
+    wa_template: "hrm_safety_reported",
+    wa_params: ["kind", "ref", "area", "link"],
+  },
+  safety_action: {
+    subject: "Safety action for you: {{action}} (by {{due}})",
+    email: `Dear {{name}},
+
+After {{ref}} ({{kind}} at {{area}}), this action is given to you:
+
+{{action}}
+
+Please finish it by {{due}} and mark it done in your portal (Safety).
+
+[[Open|{{link}}]]
+
+{{company}}`,
+    whatsapp: `Safety action for you by {{due}}: {{action}}. {{link}}`,
+    wa_template: "hrm_safety_action",
+    wa_params: ["due", "action", "link"],
+  },
+  safety_digest: {
+    subject: "Safety: {{headline}}",
+    email: `Dear {{name}},
+
+{{list}}
+
+[[Open Safety|{{link}}]]
+
+KMR HRM — {{company}}`,
+    whatsapp: `Safety: {{headline}}. {{link}}`,
+    wa_template: "hrm_safety_digest",
     wa_params: ["headline", "link"],
   },
   suggestion_update: {

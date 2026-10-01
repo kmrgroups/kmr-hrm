@@ -13,8 +13,10 @@ let last: { msg: Msg; path: string } | null = null;
 
 export function Flash({ msg }: { msg: Msg | null }) {
   const path = usePathname();
-  const [shown, setShown] = useState<Msg | null>(msg ?? (last && last.path === path ? last.msg : null));
+  // the first render must match the server's HTML exactly: only `msg` here; the remembered message is put back after mounting
+  const [shown, setShown] = useState<Msg | null>(msg);
   useEffect(() => {
+    if (!msg && last && last.path === path) { setShown(last.msg); return; }
     if (msg) {
       last = { msg, path };
       setShown(msg);

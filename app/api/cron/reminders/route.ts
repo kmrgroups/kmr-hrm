@@ -14,6 +14,7 @@ import { saveNightlyBackup } from "@/lib/data-tools";
 import { qmsDaily } from "@/lib/qms/daily";
 import { engageDaily } from "@/lib/engage/send";
 import { complianceDaily } from "@/lib/compliance/service";
+import { safetyDaily } from "@/lib/safety/service";
 
 export const maxDuration = 60;
 
@@ -24,6 +25,7 @@ export const maxDuration = 60;
 //  • adds leave credits that have fallen due (yearly at the start of the leave year, monthly accruals)
 //  • QMS: reminds people of tomorrow's training, and tells supervisors which training effectiveness checks are due
 //  • compliance: statutory items' occurrences; one reminder e-mail per owner (due soon / overdue / documents due for review)
+//  • safety: one e-mail to the safety officer — overdue actions, reports not looked at, PPE / medical due
 //  • engagement: scheduled announcements go out, surveys open / close on their dates, reminders before a survey closes
 export async function GET(req: Request) {
   if (!env.cronSecret || req.headers.get("authorization") !== `Bearer ${env.cronSecret}`) {
@@ -89,5 +91,6 @@ export async function GET(req: Request) {
   const qms = await qmsDaily(db).catch((e) => { console.error("[cron] qms", e); return { error: (e as Error).message }; });
   const engage = await engageDaily(db).catch((e) => { console.error("[cron] engage", e); return { error: (e as Error).message }; });
   const compliance = await complianceDaily(db).catch((e) => { console.error("[cron] compliance", e); return { error: (e as Error).message }; });
-  return NextResponse.json({ expired: expired?.length ?? 0, reminders: sent, attendance, qms, engage, compliance });
+  const safety = await safetyDaily(db).catch((e) => { console.error("[cron] safety", e); return { error: (e as Error).message }; });
+  return NextResponse.json({ expired: expired?.length ?? 0, reminders: sent, attendance, qms, engage, compliance, safety });
 }

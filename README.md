@@ -102,6 +102,21 @@ Sample data includes all of it (announcements, an engagement survey with 18 anon
 | Reminders | One e-mail a day to whoever looks after an item (or the HR managers): falling due within its reminder days, newly overdue, documents due for review |
 | Overview | Overdue, due in 30 days, on-time % (12 months), licences to renew, documents due for review, policy acknowledgement % |
 
+**Phase 5D — Safety** (free; run `supabase/migrations/0013_safety.sql`) — HRM › Safety, and *Safety* in each person's portal. ISO 45001 9.1, 10.2.
+
+| Area | What works |
+| --- | --- |
+| Incidents | Near miss, unsafe act / condition, first aid, injury, lost-time injury, property damage, fire, environment, dangerous occurrence; INC-2026-001 numbers; where, what, done at once, who was hurt (employee or contract worker / visitor), days lost, how bad it could have been, photo; reportable to the authority with the date and reference no. |
+| Investigation | Why-why (up to 5), root cause; the free AI can draft the why-why, the root cause and suggested actions — the investigator corrects them and adds only the actions he agrees with |
+| Actions | Corrective / preventive, owner (an employee — e-mailed, and marks it done in his portal — or a position) and due date; overdue flagged; an incident closes only when the root cause is written and every action is done |
+| Employees | Report a near miss / unsafe act / unsafe condition from the phone with a photo (shrunk on the phone before upload); see their reports, their actions, their PPE and the date of their next medical examination |
+| Figures | Days without a lost-time injury; LTIFR and severity rate per million man-hours (from attendance worked time); near misses per injury |
+| PPE | What everybody / each department must have and its replacement period; issue to one or many people; overdue and never issued |
+| Medical examinations | Dates only (done, next due, doctor, private certificate PDF) — no medical findings are kept |
+| Reminders | New reports to the safety officer at once; one e-mail when an action becomes overdue or a report waits 2 days (and a Monday summary) |
+
+Photos of 4–10 MB from phones are shrunk in the browser before upload on every form in the HRM.
+
 **Free AI in the QMS** (run `supabase/migrations/0010_ai.sql`; optional keys — see `docs/env.example.txt`)
 
 The AI only drafts and ranks; the HRM's rules decide what is a gap, a need or a finding, and a named person approves

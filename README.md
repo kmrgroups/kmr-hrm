@@ -50,6 +50,13 @@ each customer's own domain (`hr.customer.com`) with their logo and colours.
 | Hand-off | An accepted offer creates the new joiner (status invited), their salary from the offer date of joining, and sends the self-onboarding link automatically |
 | Careers page | `/careers?co=<company>` lists the open roles HR chose to show; each role page has the JD and an apply form with consent (DPDP Act) |
 
+**Sample data through the whole flow** (run `supabase/migrations/0007_sample_flow.sql`): the sample data loaded from
+KMR Apps › Grand Master › Sample Data Master (or Console › Test data) fills every module that is built — 24 employees in
+two plants, a month of attendance, leave, salaries, loans, and the hiring flow from opening to new joiner (3 openings,
+10 scored candidates at every stage, interviews, scorecards, offers). Sample records carry a **Sample** tag, never
+appear on the careers page and are never messaged (their e-mails end in `@demo.kmr.test`). The sample flush removes all
+of it; real-data flushes keep it. Each new module adds its own sample to `hrm.demo_flow`.
+
 The QMS modules (R&R, KPI, competency, skill matrix, training) follow in Phase 5 (see the product spec).
 
 ### Setting up

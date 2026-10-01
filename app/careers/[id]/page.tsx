@@ -13,10 +13,11 @@ export default async function RolePage({ params }: { params: Promise<{ id: strin
   const db = createAdminClient();
   // the role decides the company (many companies share one address on the KMR platform)
   const { data: r } = /^[0-9a-f-]{36}$/.test(id)
-    ? await db.from("requisitions").select("id,tenant_id,title,status,location,exp_min,exp_max,department:departments(name),plant:plants(name),jd:job_descriptions(purpose,responsibilities,must_have,good_to_have,qualifications,experience,status)").eq("id", id).maybeSingle()
+    ? await db.from("requisitions").select("id,tenant_id,title,status,sample,location,exp_min,exp_max,department:departments(name),plant:plants(name),jd:job_descriptions(purpose,responsibilities,must_have,good_to_have,qualifications,experience,status)").eq("id", id).maybeSingle()
     : { data: null };
   const tenant = r ? await tenantById(r.tenant_id) : await getTenant();
-  if (!r || r.status !== "open") return <PublicFrame tenant={tenant}><div className="card"><h1>This role is not open</h1><p>It may have been filled. <a href={p(tenant ? `/careers?co=${tenant.slug}` : "/careers")}>See the open roles</a>.</p></div></PublicFrame>;
+  // sample openings never reach the public: nobody real can apply to data that the sample flush removes
+  if (!r || r.status !== "open" || r.sample) return <PublicFrame tenant={tenant}><div className="card"><h1>This role is not open</h1><p>It may have been filled. <a href={p(tenant ? `/careers?co=${tenant.slug}` : "/careers")}>See the open roles</a>.</p></div></PublicFrame>;
   const jd = one(r.jd as unknown as { purpose: string | null; responsibilities: string[]; must_have: { name: string }[]; good_to_have: { name: string }[]; qualifications: string | null; experience: string | null; status: string });
   const where = r.location || one(r.plant as unknown as { name: string })?.name;
   return (

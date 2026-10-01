@@ -184,6 +184,22 @@ describe("calendar invite", () => {
   });
 });
 
+describe("salary lines written in different ways", () => {
+  it("reads 'Expected:', 'expecting' and a monthly expected salary; an expected CTC is never taken as the current one", () => {
+    expect(parseResume("Ravi\nExpected: 4.5 LPA", NOW).expected_ctc).toBe(450000);
+    expect(parseResume("Ravi\nCurrent CTC 4.8 lakhs, expecting 6 lakhs.", NOW)).toMatchObject({ current_ctc: 480000, expected_ctc: 600000 });
+    expect(parseResume("Ravi\nCurrent salary 19,000 per month; expected 23,000 per month.", NOW)).toMatchObject({ current_ctc: 228000, expected_ctc: 276000 });
+    expect(parseResume("Ravi\nExpected CTC 6 LPA", NOW)).toMatchObject({ current_ctc: null, expected_ctc: 600000 });
+  });
+  it("an operator's shop-floor habits count for the operator role", () => {
+    const op = draftJd({ title: "CNC Operator", designation: "Operator" });
+    expect(op.must_have.map((m) => m.name)).toContain("Shop-floor discipline (5S, SOP, check sheets)");
+    const text = "Manikandan P\nCNC Operator, Hosur (Aug 2023 – Present)\n• Operating Fanuc CNC turning centres; first-piece approval with micrometer\n• 5S and daily machine checklist\nITI Machinist";
+    const r = scoreResume(text, parseResume(text, NOW), { must_have: op.must_have, good_to_have: op.good_to_have, family: op.family });
+    expect(r.breakdown.find((b) => b.key === "must")!.note).toBe("All shown in the resume");
+  });
+});
+
 describe("resume reading — more layouts", () => {
   it("finds a plain 'N years' near the top, but not ages or warranty", () => {
     expect(parseResume("Karthik R\nProduction supervisor, 4 years, auto components (forging)\nDiploma 2016", NOW).total_exp).toBe(4);

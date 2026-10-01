@@ -6,7 +6,7 @@ import { Empty, fmtDate } from "@/components/ui";
 import { p } from "@/lib/base-path";
 import { lakh } from "@/lib/recruit/format";
 import { createRequisition } from "../actions";
-import { RecruitTabs, ReqStatus } from "../ui";
+import { RecruitTabs, ReqStatus, SampleTag } from "../ui";
 import { RequisitionFields } from "../forms";
 import { masters } from "../data";
 
@@ -18,7 +18,7 @@ export default async function RequisitionsPage({ searchParams }: { searchParams:
   const { s } = await searchParams;
   const db = await createClient();
   const m = await masters(db);
-  let q = db.from("requisitions").select("id,ref_no,title,status,published,headcount,ctc_min,ctc_max,exp_min,exp_max,required_by,raised_by_name,created_at,department:departments(name)").order("created_at", { ascending: false }).limit(300);
+  let q = db.from("requisitions").select("id,ref_no,title,sample,status,published,headcount,ctc_min,ctc_max,exp_min,exp_max,required_by,raised_by_name,created_at,department:departments(name)").order("created_at", { ascending: false }).limit(300);
   if (s === "active") q = q.in("status", ["pending", "approved", "open", "on_hold"]);
   const [{ data: reqs }, { data: counts }] = await Promise.all([q, db.from("applications").select("requisition_id")]);
   const n = (id: string) => (counts ?? []).filter((c) => c.requisition_id === id).length;
@@ -32,7 +32,7 @@ export default async function RequisitionsPage({ searchParams }: { searchParams:
           <div className="tablewrap" style={{ border: 0 }}><table>
             <thead><tr><th>Role</th><th>Department</th><th className="num">Posts</th><th>Experience</th><th>Salary</th><th className="num">Candidates</th><th>Status</th><th>Raised</th></tr></thead>
             <tbody>{reqs.map((r) => <tr key={r.id}>
-              <td><a href={p(`/app/recruitment/requisitions/${r.id}`)}><b>{r.title}</b></a><div className="muted mono" style={{ fontSize: 12 }}>{r.ref_no}</div></td>
+              <td><a href={p(`/app/recruitment/requisitions/${r.id}`)}><b>{r.title}</b></a><SampleTag on={r.sample} /><div className="muted mono" style={{ fontSize: 12 }}>{r.ref_no}</div></td>
               <td>{(Array.isArray(r.department) ? r.department[0] : r.department as { name: string } | null)?.name ?? "—"}</td>
               <td className="num">{r.headcount}</td>
               <td>{r.exp_min ?? "?"}–{r.exp_max ?? "?"} y</td>

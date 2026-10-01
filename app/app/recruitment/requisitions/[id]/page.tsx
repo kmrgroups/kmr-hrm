@@ -11,7 +11,7 @@ import { jdText } from "@/lib/recruit/jd";
 import { FAMILIES } from "@/lib/recruit/vocab";
 import { REQ_STATUS_LABEL, type JdRow } from "@/lib/recruit/service";
 import { approveJd, rescoreAll, saveJd, setPublished, setRequisitionStatus, updateRequisition, writeJd, addCandidate } from "../../actions";
-import { RecruitTabs, ReqStatus, ScoreBar, RecoBadge, AppStatus } from "../../ui";
+import { RecruitTabs, ReqStatus, ScoreBar, RecoBadge, AppStatus, SampleTag } from "../../ui";
 import { RequisitionFields } from "../../forms";
 import { masters } from "../../data";
 import { ResumeUploader } from "../../ResumeUploader";
@@ -42,7 +42,7 @@ export default async function RequisitionPage({ params, searchParams }: { params
 
   return (
     <AppShell session={session} active="/app/recruitment">
-      <div className="pagehead"><div><h1>{r.title}</h1><p><span className="mono">{r.ref_no}</span> · {r.headcount} post{r.headcount > 1 ? "s" : ""} · raised by {r.raised_by_name ?? "—"} on {fmtDate(r.created_at)} · <ReqStatus status={r.status} published={r.published} /></p></div></div>
+      <div className="pagehead"><div><h1>{r.title}<SampleTag on={r.sample} /></h1><p><span className="mono">{r.ref_no}</span> · {r.headcount} post{r.headcount > 1 ? "s" : ""} · raised by {r.raised_by_name ?? "—"} on {fmtDate(r.created_at)} · <ReqStatus status={r.status} published={r.published} /></p></div></div>
       <RecruitTabs active="reqs" hr={hr} />
 
       {hr && <div className="card">

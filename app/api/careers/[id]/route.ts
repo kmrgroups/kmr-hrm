@@ -18,9 +18,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!form) return err("Please fill in the form.");
   if (String(form.get("website") ?? "")) return NextResponse.json({ ok: true });       // a robot filled in the hidden field
   const db = createAdminClient();
-  const { data: r } = await db.from("requisitions").select("id,tenant_id,title,status").eq("id", id).maybeSingle();
+  const { data: r } = await db.from("requisitions").select("id,tenant_id,title,status,sample").eq("id", id).maybeSingle();
   const tenant = r ? await tenantById(r.tenant_id) : null;
-  if (!r || !tenant || r.status !== "open") return err("This role is not open any more.", 410);
+  if (!r || !tenant || r.status !== "open" || r.sample) return err("This role is not open any more.", 410);
   const name = String(form.get("full_name") ?? "").trim().slice(0, 120), email = String(form.get("email") ?? "").trim().toLowerCase().slice(0, 120);
   const phone = normalizeIndianMobile(String(form.get("phone") ?? ""));
   if (name.length < 2) return err("Please enter your full name.");

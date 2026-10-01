@@ -15,6 +15,11 @@ export function ScoreBar({ score }: { score: number | null | undefined }) {
   return <span className="scorebar" title={`Match score ${score} of 100`}><i><b style={{ width: `${score}%`, background: c }} /></i><b>{score}</b></span>;
 }
 
+/** sample data from KMR Apps › Grand Master › Sample Data Master — its flush removes it; sample e-mails never reach anyone */
+export function SampleTag({ on }: { on?: boolean | null }) {
+  return on ? <span className="badge" title="Sample data — Flush sample data removes it" style={{ marginLeft: 8, fontSize: 11, verticalAlign: "middle" }}>Sample</span> : null;
+}
+
 export function RecoBadge({ reco }: { reco: string | null | undefined }) {
   if (!reco) return null;
   return <span className={`badge ${reco === "suitable" ? "ok" : reco === "hold" ? "warn" : "danger"}`}>{RECO_LABEL[reco] ?? reco}</span>;

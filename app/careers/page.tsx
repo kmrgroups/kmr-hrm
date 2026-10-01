@@ -18,7 +18,7 @@ export default async function CareersPage({ searchParams }: { searchParams: Prom
   const st = await recruitSettings(db, tenant.id);
   if (!st.careers_enabled) return <PublicFrame tenant={tenant}><div className="card"><h1>Careers</h1><p>{tenant.name} is not showing openings here at the moment.</p></div></PublicFrame>;
   const { data: roles } = await db.from("requisitions").select("id,title,location,exp_min,exp_max,headcount,department:departments(name),plant:plants(name)")
-    .eq("tenant_id", tenant.id).eq("status", "open").eq("published", true).order("created_at", { ascending: false });
+    .eq("tenant_id", tenant.id).eq("status", "open").eq("published", true).eq("sample", false).order("created_at", { ascending: false });
   return (
     <PublicFrame tenant={tenant}>
       <h1>Careers at {tenant.name}</h1>

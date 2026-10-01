@@ -12,7 +12,7 @@ import { recruitSettings, RECO_LABEL } from "@/lib/recruit/service";
 import type { Breakup } from "@/lib/recruit/offer";
 import type { ScorePart } from "@/lib/recruit/score";
 import { decide, saveOffer, scheduleInterview, sendOffer, setInterviewStatus, updateCandidate, withdrawOffer } from "../../actions";
-import { RecruitTabs, ScoreBar, RecoBadge, AppStatus, MasterSelect } from "../../ui";
+import { RecruitTabs, ScoreBar, RecoBadge, AppStatus, MasterSelect, SampleTag } from "../../ui";
 import { masters } from "../../data";
 
 export const metadata = { title: "Candidate" };
@@ -43,7 +43,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
 
   return (
     <AppShell session={session} active="/app/recruitment">
-      <div className="pagehead"><div><h1>{c.full_name}</h1>
+      <div className="pagehead"><div><h1>{c.full_name}<SampleTag on={c.sample} /></h1>
         <p>For <a href={p(`/app/recruitment/requisitions/${req.id}`)}>{req.title}</a> <span className="mono muted">{req.ref_no}</span> · <AppStatus status={a.status} /> · applied {fmtDate(a.created_at)}{a.source ? ` (${({ upload: "resume upload", careers: "careers page", referral: "referral", manual: "added by HR" } as Record<string, string>)[a.source] ?? a.source})` : ""}</p></div>
         {c.resume_path && <a className="btn secondary" target="_blank" rel="noreferrer" href={p(`/api/recruitment/resume/${c.id}`)}>Open the resume</a>}</div>
       <RecruitTabs active="cands" />

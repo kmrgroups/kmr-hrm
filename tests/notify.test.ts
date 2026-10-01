@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { fill, toPlainText, toEmailHtml } from "@/lib/notify/render";
+import { fill, toPlainText, toEmailHtml, isSampleRecipient } from "@/lib/notify/render";
 import { DEFAULT_TEMPLATES } from "@/lib/notify/templates";
+
+describe("sample people", () => {
+  it("are never messaged; real addresses are", () => {
+    expect(isSampleRecipient("manikandan.p@demo.kmr.test")).toBe(true);
+    expect(isSampleRecipient("Admin@KMR-DEMO.test ")).toBe(true);
+    expect(isSampleRecipient("hr@kmr-groups.com")).toBe(false);
+    expect(isSampleRecipient("someone@demo.kmr.test.example.com")).toBe(false);
+    expect(isSampleRecipient(null)).toBe(false);
+  });
+});
 
 describe("message rendering", () => {
   it("fills placeholders and blanks unknown ones", () => {

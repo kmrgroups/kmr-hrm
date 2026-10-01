@@ -2,6 +2,11 @@
 
 export type Vars = Record<string, string | number | null | undefined>;
 
+/** Sample people (Grand Master › Sample data) use addresses under demo.kmr.test / kmr-demo.test: nothing is sent to them */
+export function isSampleRecipient(email: string | null | undefined): boolean {
+  return !!email && /@([a-z0-9-]+\.)*(demo\.kmr\.test|kmr-demo\.test)$/i.test(email.trim());
+}
+
 export function fill(text: string, vars: Vars): string {
   return text.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_, k: string) => {
     const v = vars[k];

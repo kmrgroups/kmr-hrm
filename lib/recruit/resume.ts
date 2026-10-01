@@ -103,8 +103,9 @@ export function parseResume(text: string, now = new Date()): ResumeProfile {
     if (y && +y[1] <= 45) { total_exp = +y[1]; break; }
   }
 
-  const current_ctc = ctcAfter(t, /(?:current|present|existing)\s*(?:ctc|salary|package)|\bctc\b(?!\s*expected)/);
-  const expected_ctc = ctcAfter(t, /expected\s*(?:ctc|salary|package)/);
+  const current_ctc = ctcAfter(t, /(?:current|present|existing)\s*(?:ctc|salary|package)|(?<!expect(?:ed|ing)\s{0,3})\bctc\b(?!\s*expected)/);
+  // "Expected CTC: 6.5 LPA" / "Expected: 4.5 LPA" / "expecting 6 lakhs" / "expected 23,000 per month"
+  const expected_ctc = ctcAfter(t, /expect(?:ed|ing)(?:\s*(?:ctc|salary|package|pay))?/);
 
   let notice_days: number | null = null;
   const nm = t.match(/notice\s*(?:period)?[^0-9\n]{0,15}(\d{1,3})\s*(days?|months?|weeks?)/i);

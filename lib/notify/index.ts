@@ -6,7 +6,7 @@ import { logoUrl } from "@/lib/tenant";
 import { toWhatsAppNumber, isValidEmail } from "@/lib/validators";
 import type { Tenant } from "@/lib/types";
 import { DEFAULT_TEMPLATES, type MessageTemplate, type NotificationEvent } from "./templates";
-import { fill, toEmailHtml, toPlainText, type Vars } from "./render";
+import { fill, isSampleRecipient, toEmailHtml, toPlainText, type Vars } from "./render";
 
 export interface Recipient {
   name?: string;
@@ -127,6 +127,16 @@ export async function notify(opts: NotifyOptions): Promise<ChannelResult[]> {
     });
     if (r.status !== "sent") console.warn(`[notify] ${event} ${channel} to ${recipient}: ${r.status} ${r.error ?? ""}`);
   };
+
+  // sample people (Grand Master › Sample data) have made-up e-mails and mobiles: nothing is ever sent to them,
+  // on any channel — a made-up mobile number may belong to a real person
+  if (isSampleRecipient(to.email)) {
+    for (const ch of channels) {
+      await record(ch, ch === "email" ? to.email! : to.phone ?? "-", null, `(${event} for sample data — not sent)`, { status: "skipped", error: "sample data" });
+      results.push({ channel: ch, status: "skipped", error: "sample data — not sent" });
+    }
+    return results;
+  }
 
   if (channels.includes("email") && tpl.emailOn && to.email && isValidEmail(to.email)) {
     const subject = fill(tpl.subject, vars);

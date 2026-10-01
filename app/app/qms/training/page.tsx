@@ -12,6 +12,7 @@ import { people, personLabel } from "../data";
 import { saveProgram, saveSession } from "../actions";
 
 export const metadata = { title: "Training plan" };
+export const maxDuration = 60;
 const STATUS: Record<string, [string, string]> = { planned: ["Planned", ""], scheduled: ["Scheduled", "info"], done: ["Done", "ok"], cancelled: ["Cancelled", ""] };
 
 export default async function TrainingPlan({ searchParams }: { searchParams: Promise<{ y?: string }> }) {

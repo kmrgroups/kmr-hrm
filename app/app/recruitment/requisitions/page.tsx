@@ -11,6 +11,7 @@ import { RequisitionFields } from "../forms";
 import { masters } from "../data";
 
 export const metadata = { title: "Requisitions" };
+export const maxDuration = 60;
 
 export default async function RequisitionsPage({ searchParams }: { searchParams: Promise<{ s?: string }> }) {
   const session = await requireRole([...HR_ROLES, "manager"]);

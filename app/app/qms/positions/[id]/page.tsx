@@ -10,11 +10,12 @@ import { COMP_LEVELS, competencyGaps } from "@/lib/qms/rules";
 import { FREQUENCIES } from "@/lib/qms/kpi-catalog";
 import type { JdRow } from "@/lib/recruit/service";
 import { approveJd, saveJd } from "@/app/app/recruitment/actions";
-import { QmsTabs, Clause } from "../../ui";
+import { QmsTabs, Clause, AiBadge } from "../../ui";
 import { people, personLabel } from "../../data";
 import { approveSheet, rewriteSheet, savePositionSheet, setEmployeePosition } from "../../actions";
 
 export const metadata = { title: "Position" };
+export const maxDuration = 60;
 const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default async function PositionPage({ params }: { params: Promise<{ id: string }> }) {
@@ -61,7 +62,8 @@ export default async function PositionPage({ params }: { params: Promise<{ id: s
 
       {/* ---------- 1. job description ---------- */}
       <div className="card">
-        <h2><span>1 · Job description {jd && <span className={`badge ${jd.status === "approved" ? "ok" : "warn"}`}>{jd.status === "approved" ? `Approved · v${jd.version}` : `Draft · v${jd.version}`}</span>}</span>
+        <h2><span>1 · Job description {jd && <span className={`badge ${jd.status === "approved" ? "ok" : "warn"}`}>{jd.status === "approved" ? `Approved · v${jd.version}` : `Draft · v${jd.version}`}</span>}
+          {jd && (jd as { ai_model?: string | null }).ai_model && <AiBadge model={(jd as { ai_model?: string | null }).ai_model!} draft={jd.status !== "approved"} />}</span>
           {approved && draft && <span className="muted" style={{ fontSize: 13, fontWeight: 400 }}>v{approved.version} is in use until the draft is approved</span>}</h2>
         {!jd ? <Empty>No job description yet. Raise a requisition for this position, or add the position again with “Write its job description now”.</Empty> : (
           <div className="stack">
@@ -95,7 +97,8 @@ export default async function PositionPage({ params }: { params: Promise<{ id: s
       {/* ---------- 2. R&R sheet ---------- */}
       <div className="card">
         <h2><span>2 · Roles, Responsibilities, Authority, Competency &amp; KPI <Clause>ISO 9001 5.3, 7.2, 9.1.1 · IATF 5.3.1</Clause></span>
-          {rr && <span className={`badge ${rr.status === "approved" ? "ok" : "warn"}`}>{rr.doc_no ?? ""} · rev {rr.version} · {rr.status === "approved" ? `approved ${fmtDate(rr.approved_at)}` : "draft"}</span>}</h2>
+          {rr && <span className={`badge ${rr.status === "approved" ? "ok" : "warn"}`}>{rr.doc_no ?? ""} · rev {rr.version} · {rr.status === "approved" ? `approved ${fmtDate(rr.approved_at)}` : "draft"}</span>}
+          {rr?.ai_model && <AiBadge model={rr.ai_model} draft={rr.status !== "approved"} />}</h2>
         <p className="muted" style={{ marginTop: 0 }}>Written from the approved job description; describes the position — no names, no designation. The landscape PDF carries your logo and the clause references.</p>
         {!rr ? (approved ? (hr ? <ActionForm action={rewriteSheet} submitLabel="Write the R&R sheet from the job description" variant="accent" hidden={{ position_id: id }} />
           : <Empty>HR writes the sheet.</Empty>) : <Empty>Approve the job description first — the sheet is written from it.</Empty>) : (

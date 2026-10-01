@@ -14,7 +14,7 @@ import { istToday } from "@/lib/attendance/time";
 import { fromLocal, fmtWhen } from "@/lib/recruit/format";
 import { addDaysIso, addMonths, findNeeds, planFromNeeds, QUALIFIED } from "@/lib/qms/rules";
 import { isSampleRecipient } from "@/lib/notify/render";
-import { draftJd } from "@/lib/recruit/jd";
+import { smartJd } from "@/lib/qms/ai";
 import { ensurePosition, writeSheetFromJd } from "@/lib/qms/positions";
 import { competencyCategory } from "@/lib/qms/sheet";
 import type { ActionState } from "@/app/app/employees/actions";
@@ -643,8 +643,10 @@ export async function addPosition(_: ActionState, f: FormData): Promise<ActionSt
       const { data: has } = await db.from("job_descriptions").select("id").eq("position_id", id).limit(1);
       if (!has?.length) {
         const { data: pos } = await db.from("positions").select("title,role").eq("id", id).single();
-        const jd = draftJd({ title: pos!.title, department: d?.name, role: pos!.role, competencies: f.getAll("competency").map(String).slice(0, 20) });
-        await db.from("job_descriptions").insert({ tenant_id: tenant.id, position_id: id, status: "draft", version: 1, created_by: user.id, ...jd });
+        // the free AI drafts it when set up (falls back to the rule-based writer); HR reviews and approves it either way
+        const { draft: jd, model } = await smartJd(db as never, { tenantId: tenant.id, userId: user.id, userName: user.full_name },
+          { title: pos!.title, department: d?.name, role: pos!.role, competencies: f.getAll("competency").map(String).slice(0, 20) });
+        await db.from("job_descriptions").insert({ tenant_id: tenant.id, position_id: id, status: "draft", version: 1, created_by: user.id, ...jd, ai_model: model });
       }
     }
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.position_added", entity: "positions", entityId: id });
@@ -718,10 +720,10 @@ export async function rewriteSheet(_: ActionState, f: FormData): Promise<ActionS
     const { tenant, user } = await assertRole(HR);
     const pid = uuid(f, "position_id");
     if (!pid) return { error: "Unknown position." };
-    const r = await writeSheetFromJd((await createClient()) as never, tenant.id, pid);
+    const r = await writeSheetFromJd((await createClient()) as never, tenant.id, pid, { tenantId: tenant.id, userId: user.id, userName: user.full_name });
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "qms.sheet_written", entity: "rr_roles", entityId: pid, data: r });
     revalidatePath(`/app/qms/positions/${pid}`);
-    return done(`The R&R sheet is written from the job description (version ${r.version}, draft). Review it, then approve.`);
+    return done(`The R&R sheet is ${r.model ? "drafted by the AI" : "written"} from the job description (version ${r.version}, draft). Review it, then approve.`);
   } catch (e) { return fail(e); }
 }
 

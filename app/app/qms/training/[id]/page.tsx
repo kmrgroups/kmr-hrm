@@ -13,6 +13,7 @@ import { addAttendees, cancelSession, completeSession, removeAttendee, saveAtten
 import { ScanCard } from "./ScanCard";
 
 export const metadata = { title: "Training session" };
+export const maxDuration = 60;
 
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requireRole([...HR_ROLES, "manager"]);
@@ -46,6 +47,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
         <span className={`badge ${s.status === "done" ? "ok" : s.status === "scheduled" ? "info" : ""}`} style={{ fontSize: 14 }}>{({ planned: "Planned", scheduled: "Scheduled", done: "Done", cancelled: "Cancelled" } as Record<string, string>)[s.status]}</span></div>
       <QmsTabs active="plan" hr={hr} />
 
+      {test && hr && <div className="alert info" style={{ marginBottom: 16 }}>Pre / post test: <a href={p(`/app/qms/ai/quiz/${pr.id}`)}>question paper for this programme</a> (the free AI can draft it; you check and accept the answers before printing).</div>}
       {pr.category === "awareness" && <div className="alert info" style={{ marginBottom: 16 }}>Awareness session <Clause>IATF 7.3</Clause> — each person signs off in his portal after attending (or tick “signed on paper”).</div>}
 
       <div className="grid two">

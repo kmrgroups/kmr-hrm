@@ -17,6 +17,7 @@ import { masters } from "../../data";
 import { ResumeUploader } from "../../ResumeUploader";
 
 export const metadata = { title: "Requisition" };
+export const maxDuration = 60;
 const one = <T,>(v: T | T[] | null | undefined) => (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default async function RequisitionPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ f?: string }> }) {

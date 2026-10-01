@@ -14,6 +14,7 @@ import { loadSetup } from "@/lib/payroll/service";
 import { inr } from "@/lib/payroll/compute";
 import { draftJd } from "@/lib/recruit/jd";
 import { currentJd, ensurePosition, writeSheetFromJd } from "@/lib/qms/positions";
+import { smartJd } from "@/lib/qms/ai";
 import { breakupForCtc, breakupForGross } from "@/lib/recruit/offer";
 import { offerLetterPdf } from "@/lib/recruit/offer-letter";
 import { buildIcs } from "@/lib/recruit/ics";
@@ -88,10 +89,10 @@ export async function createRequisition(_: ActionState, form: FormData): Promise
       approved_by: status === "approved" ? user.id : null, approved_at: status === "approved" ? new Date().toISOString() : null }).select("id").single();
     if (error) return { error: error.message };
     id = data.id;
-    const how = hr ? await attachJd(db, tenant.id, user.id, id, false, null, chosenCompetencies(form)) : null;
+    const how = hr ? await attachJd(db, tenant.id, user.id, id, false, null, chosenCompetencies(form), user.full_name) : null;
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "requisition.raised", entity: "requisitions", entityId: id, data: { ref, status } });
     await setFlash({ ok: hr ? (how === "reused" ? `Requisition ${ref} created. The position's approved job description is used — open the role when ready.`
-      : `Requisition ${ref} created. A job description was written for the position — check it, edit if needed, approve it and open the role.`) : status === "pending" ? `Requisition ${ref} sent to HR for approval.` : `Requisition ${ref} raised.` });
+      : `Requisition ${ref} created. A job description was ${how === "ai" ? "drafted by the AI" : "written"} for the position — check it, edit if needed, approve it and open the role.`) : status === "pending" ? `Requisition ${ref} sent to HR for approval.` : `Requisition ${ref} raised.` });
   } catch (e) { return fail(e); }
   redirect(`/app/recruitment/requisitions/${id}`);
 }
@@ -155,7 +156,7 @@ export async function setPublished(_: ActionState, form: FormData): Promise<Acti
 
 // ================================================================== job descriptions
 /** a JD for the requisition: the position's approved JD (reused), else a fresh draft written for the position */
-async function attachJd(db: Awaited<ReturnType<typeof createClient>>, tenantId: string, userId: string, reqId: string, fresh: boolean, family?: string | null, competencies: string[] = []) {
+async function attachJd(db: Awaited<ReturnType<typeof createClient>>, tenantId: string, userId: string, reqId: string, fresh: boolean, family?: string | null, competencies: string[] = [], userName: string | null = null) {
   const { data: r } = await db.from("requisitions").select("*, position:positions(id,title,role)").eq("id", reqId).single();
   if (!r) throw new Error("Requisition not found.");
   const pos = (Array.isArray(r.position) ? r.position[0] : r.position) as { id: string; title: string; role: string | null } | null;
@@ -165,14 +166,15 @@ async function attachJd(db: Awaited<ReturnType<typeof createClient>>, tenantId: 
   }
   const n = await names(db, r);
   const { data: t } = await db.from("tenants").select("name").eq("id", tenantId).maybeSingle();
-  const d = draftJd({ title: r.title, designation: null, department: n.department, plant: n.plant, company: t?.name, family, expMin: r.exp_min, expMax: r.exp_max,
-    location: r.location, role: pos?.role, competencies });
+  // the free AI writes the draft when it is set up and answers; otherwise the rule-based writer does (HR reviews either way)
+  const { draft: d, model } = await smartJd(db as never, { tenantId, userId, userName }, { title: r.title, designation: null, department: n.department, plant: n.plant, company: t?.name, family,
+    expMin: r.exp_min, expMax: r.exp_max, location: r.location, role: pos?.role, competencies });
   const { data: last } = pos ? await db.from("job_descriptions").select("version").eq("position_id", pos.id).order("version", { ascending: false }).limit(1) : { data: null };
   const { data: jd, error } = await db.from("job_descriptions").insert({ tenant_id: tenantId, position_id: pos?.id ?? null, designation_id: r.designation_id, created_by: userId, status: "draft",
-    version: (last?.[0]?.version ?? 0) + 1, ...d }).select("id").single();
+    version: (last?.[0]?.version ?? 0) + 1, ...d, ai_model: model }).select("id").single();
   if (error) throw new Error(error.message);
   await db.from("requisitions").update({ jd_id: jd.id }).eq("id", reqId);
-  return "drafted";
+  return model ? "ai" : "drafted";
 }
 
 export async function writeJd(_: ActionState, form: FormData): Promise<ActionState> {
@@ -180,10 +182,10 @@ export async function writeJd(_: ActionState, form: FormData): Promise<ActionSta
     const { user, tenant } = await assertRole(HR);
     const reqId = uuid(form, "requisition_id"); if (!reqId) return { error: "Missing requisition." };
     const db = await createClient();
-    const how = await attachJd(db, tenant.id, user.id, reqId, form.get("fresh") === "1", opt(form, "family", 30));
+    const how = await attachJd(db, tenant.id, user.id, reqId, form.get("fresh") === "1", opt(form, "family", 30), [], user.full_name);
     await rescoreRequisition(db, reqId);
     revalidatePath(`/app/recruitment/requisitions/${reqId}`);
-    return done(how === "reused" ? "The position's approved job description is reused. Edit it if this opening differs." : "A new job description was written for the position. Check and edit it, then approve it.");
+    return done(how === "reused" ? "The position's approved job description is reused. Edit it if this opening differs." : how === "ai" ? "The AI drafted a new job description for the position. Check and edit it, then approve it." : "A new job description was written for the position. Check and edit it, then approve it.");
   } catch (e) { return fail(e); }
 }
 
@@ -237,7 +239,7 @@ export async function approveJd(_: ActionState, form: FormData): Promise<ActionS
     let sheet = "";
     if (jd.position_id) {
       const { data: rr } = await db.from("rr_roles").select("id").eq("position_id", jd.position_id).maybeSingle();
-      if (!rr) { await writeSheetFromJd(db as never, tenant.id, jd.position_id); sheet = " The position's R&R sheet (roles, responsibilities, authority, competency, KPI) is written from it — review and approve it in QMS › Positions."; }
+      if (!rr) { const w = await writeSheetFromJd(db as never, tenant.id, jd.position_id, { tenantId: tenant.id, userId: user.id, userName: user.full_name }); sheet = ` The position's R&R sheet (roles, responsibilities, authority, competency, KPI) is ${w.model ? "drafted by the AI" : "written"} from it — review and approve it in QMS › Positions.`; }
       else sheet = " The position already has an R&R sheet; refresh it from this JD in QMS › Positions if needed.";
     }
     revalidatePath(`/app/recruitment/requisitions/${reqId}`);

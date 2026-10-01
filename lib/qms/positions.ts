@@ -5,6 +5,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { detectFamily } from "@/lib/recruit/vocab";
 import { sheetFromJd, competencyCategory } from "./sheet";
+import { smartSheet, type Actor } from "./ai";
 
 type Db = SupabaseClient;
 
@@ -41,15 +42,16 @@ async function libraryCompetency(db: Db, tenantId: string, name: string): Promis
  * Writes the position's R&R sheet from its approved job description. An approved sheet becomes a new draft version;
  * KPIs keep their history (a KPI no longer in the JD is switched off, not deleted).
  */
-export async function writeSheetFromJd(db: Db, tenantId: string, positionId: string): Promise<{ version: number; created: boolean }> {
-  const { data: pos } = await db.from("positions").select("id,title,role,department_id").eq("id", positionId).single();
+export async function writeSheetFromJd(db: Db, tenantId: string, positionId: string, actor?: Actor): Promise<{ version: number; created: boolean; model: string | null }> {
+  const { data: pos } = await db.from("positions").select("id,title,role,department_id,departments(name)").eq("id", positionId).single();
   if (!pos) throw new Error("Position not found.");
   const jd = await currentJd(db, positionId);
   if (!jd) throw new Error("Approve the position's job description first — the sheet is written from it.");
-  const sh = sheetFromJd(jd, pos);
+  const department = (pos as unknown as { departments: { name: string } | null }).departments?.name ?? null;
+  const { sheet: sh, model } = actor ? await smartSheet(db, actor, jd, { title: pos.title, role: pos.role, department }) : { sheet: sheetFromJd(jd, pos), model: null };
   const { data: rr } = await db.from("rr_roles").select("id,version,status").eq("position_id", positionId).maybeSingle();
   let version = 1;
-  const fields = { purpose: sh.purpose, roles: sh.roles, responsibilities: sh.responsibilities, authorities: sh.authorities, jd_id: jd.id, department_id: pos.department_id };
+  const fields = { purpose: sh.purpose, roles: sh.roles, responsibilities: sh.responsibilities, authorities: sh.authorities, jd_id: jd.id, department_id: pos.department_id, ai_model: model };
   if (rr) {
     version = rr.status === "approved" ? rr.version + 1 : rr.version;
     const { error } = await db.from("rr_roles").update({ ...fields, version, status: "draft", approved_at: null, approved_by: null }).eq("id", rr.id);
@@ -78,5 +80,5 @@ export async function writeSheetFromJd(db: Db, tenantId: string, positionId: str
   }
   const off = (cur ?? []).filter((x) => !keep.has(x.id)).map((x) => x.id);
   if (off.length) await db.from("kpis").update({ active: false }).in("id", off);
-  return { version, created: !rr };
+  return { version, created: !rr, model };
 }

@@ -1,60 +1,26 @@
 import { requireRole, hasRole, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/AppShell";
-import { fetchAll } from "@/lib/attendance/service";
 import { istToday } from "@/lib/attendance/time";
 import { p } from "@/lib/base-path";
-import { coverage, competencyCoverage, competencyGaps, auditorStatus, addDaysIso } from "@/lib/qms/rules";
+import { loadHealth } from "@/lib/qms/health";
+import { aiConfigured } from "@/lib/ai/gateway";
+import { AgentCard } from "./ai/AgentCard";
 import { QmsTabs, Clause } from "./ui";
-import { people, qmsSettings } from "./data";
 
 export const metadata = { title: "QMS — people development" };
+export const maxDuration = 60;
 
 export default async function QmsHome() {
   const session = await requireRole([...HR_ROLES, "manager"]);
   const hr = hasRole(session.user, HR_ROLES);
   const db = await createClient();
   const today = istToday(), month = today.slice(0, 7), yearStart = `${today.slice(0, 4)}-01-01`;
-  const [ppl, st, ops, skills, req, assessed, needs, sessions, eff, ojt, auditors, audits, rr, acks, awareness] = await Promise.all([
-    people(db), qmsSettings(db),
-    db.from("operations").select("id,line,code,name,critical,min_qualified").eq("active", true).then((r) => r.data ?? []),
-    fetchAll<{ employee_id: string; operation_id: string; level: number; valid_until: string | null }>((a, b) => db.from("skill_levels").select("employee_id,operation_id,level,valid_until").range(a, b)),
-    db.from("role_competencies").select("position_id,competency_id,required_level").not("position_id", "is", null).then((r) => (r.data ?? []) as { position_id: string; competency_id: string; required_level: number }[]),
-    fetchAll<{ employee_id: string; competency_id: string; level: number }>((a, b) => db.from("employee_competencies").select("employee_id,competency_id,level").range(a, b)),
-    fetchAll<{ status: string; source: string; priority: string }>((a, b) => db.from("training_needs").select("status,source,priority").in("status", ["open", "planned"]).range(a, b)),
-    db.from("training_sessions").select("id,status,plan_month,starts_at,program:training_programs(duration_hours),training_attendance(attended)").gte("plan_month", `${today.slice(0, 4)}-01`).then((r) => r.data ?? []),
-    db.from("training_effectiveness").select("due_on,result").then((r) => r.data ?? []),
-    db.from("ojt_records").select("status,started_on,template:ojt_templates(days)").eq("status", "in_progress").then((r) => r.data ?? []),
-    hr ? db.from("auditors").select("id,valid_until,audits_per_year,active").eq("active", true).then((r) => r.data ?? []) : Promise.resolve([]),
-    hr ? db.from("auditor_audits").select("auditor_id,audit_date").gte("audit_date", addDaysIso(today, -365)).then((r) => r.data ?? []) : Promise.resolve([]),
-    db.from("rr_roles").select("id,position_id,version,status").eq("status", "approved").not("position_id", "is", null).then((r) => r.data ?? []),
-    db.from("rr_acks").select("rr_id,employee_id,version").then((r) => r.data ?? []),
-    db.from("training_attendance").select("acknowledged_at,session:training_sessions!inner(status,program:training_programs!inner(eval_method))").eq("attended", true).is("acknowledged_at", null).then((r) => r.data ?? []),
-  ]);
-  const cov = coverage(ops, skills, st.min_qualified, today);
-  const alerts = cov.filter((c) => c.alert);
-  const gaps = competencyGaps(ppl, req, assessed);
-  const compCov = competencyCoverage(ppl, req, assessed);
-  const covered = cov.filter((c) => !c.short && !c.expired).length;
-  const doneSess = sessions.filter((s) => s.status === "done");
-  const hours = doneSess.reduce((sum, s) => {
-    const pr = (Array.isArray(s.program) ? s.program[0] : s.program) as { duration_hours: number } | null;
-    const present = (s.training_attendance as { attended: boolean | null }[]).filter((a) => a.attended).length;
-    return sum + (pr?.duration_hours ?? 0) * present;
-  }, 0);
-  const planned = sessions.filter((s) => s.status !== "cancelled");
-  const effDue = eff.filter((e) => !e.result), effOver = effDue.filter((e) => e.due_on < today), effDone = eff.filter((e) => e.result);
-  const effRate = effDone.length ? Math.round((effDone.filter((e) => e.result === "effective").length / effDone.length) * 100) : null;
-  const ojtLate = ojt.filter((o) => { const t = (Array.isArray(o.template) ? o.template[0] : o.template) as { days: number } | null; return addDaysIso(o.started_on, t?.days ?? 15) < today; }).length;
-  const audStat = auditors.map((a) => auditorStatus(a, audits.filter((x) => x.auditor_id === a.id).length, today));
-  const ackPending = ppl.filter((e) => rr.some((r) => r.position_id === e.position_id && !acks.some((k) => k.rr_id === r.id && k.employee_id === e.id && k.version === r.version))).length;
-  const noPosition = ppl.filter((e) => !e.position_id).length;
-  const signoffPending = awareness.filter((a) => {
-    const s = (Array.isArray(a.session) ? a.session[0] : a.session) as { program: { eval_method: string } | { eval_method: string }[] } | null;
-    const pr = s ? (Array.isArray(s.program) ? s.program[0] : s.program) : null;
-    return pr?.eval_method === "signoff";
-  }).length;
-  const open = needs.filter((n) => n.status === "open");
+  const h = await loadHealth(db, hr, today);
+  const { st, ops, alerts, gaps, compCov, covered, sessions, doneSess, hours, planned, effDue, effOver, effDone, effRate, ojt, ojtLate, auditors, audStat, ackPending, noPosition, signoffPending, needs, open } = h;
+  const rr = h.approvedRr;
+  const agent = hr ? await db.from("qms_settings").select("agent_result,agent_run_at").maybeSingle().then((r) => r.data) : null;
+  const ai = hr && aiConfigured();
 
   const Stat = ({ label, value, hint, href, tone }: { label: string; value: React.ReactNode; hint?: string; href: string; tone?: "warn" | "danger" | "ok" }) => (
     <a className="card stat" href={p(href)} style={{ textDecoration: "none", color: "inherit", borderTop: tone ? `3px solid var(--${tone === "ok" ? "ok" : tone})` : undefined }}>
@@ -90,6 +56,8 @@ export default async function QmsHome() {
         <Stat label="Training needs open" value={open.length} hint={`${open.filter((n) => n.priority === "high").length} high priority`} href="/app/qms/needs" />
         <Stat label="Effectiveness due" value={effDue.length} hint={effOver.length ? `${effOver.length} overdue` : "none overdue"} href="/app/qms/effectiveness" tone={effOver.length ? "danger" : undefined} />
       </div>
+
+      {hr && <AgentCard findings={h.findings} saved={agent?.agent_result ?? null} runAt={agent?.agent_run_at ?? null} ai={ai} />}
 
       {alerts.length > 0 && (
         <div className="card">

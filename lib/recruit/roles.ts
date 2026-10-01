@@ -44,7 +44,7 @@ export const ROLE_AREAS: RoleArea[] = [
     responsibilities: ["Convert customer schedules into production and material plans", "Track WIP and finished goods; dispatch on time", "Keep inventory accurate with FIFO and cycle counts"],
     authorities: ["Change the daily production sequence to protect customer delivery"],
     competencies: [["Production planning & control", 3], ["ERP (SAP / Oracle / Tally)", 2]], kpis: ["On-time delivery %", "Inventory accuracy %"] },
-  { key: "npd", label: "New product & process development", match: /npd|new product|develop|process|industriali|apqp|trial/i,
+  { key: "npd", label: "New product & process development", match: /npd|new product|product develop|process develop|process engineer|new process|industriali|apqp|trial/i,
     responsibilities: ["Plan and launch new parts through APQP to PPAP approval", "Prepare PFMEA, control plan and process sheets", "Run trials and pilot lots; capture lessons learned"],
     authorities: ["Release a process for production after a successful trial"],
     competencies: [["Process engineering / NPD", 3], ["Core tools (APQP, PPAP, FMEA, SPC, MSA)", 3]], kpis: ["NPD milestones on time", "PPAP approval first time"] },

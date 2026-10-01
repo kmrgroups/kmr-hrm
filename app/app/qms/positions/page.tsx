@@ -12,6 +12,7 @@ import { people, masters, positions, type PersonRow } from "../data";
 import { addPosition } from "../actions";
 
 export const metadata = { title: "Positions & R&R" };
+export const maxDuration = 60;
 
 export default async function PositionsPage({ searchParams }: { searchParams: Promise<{ v?: string }> }) {
   const session = await requireRole([...HR_ROLES, "manager"]);

@@ -80,6 +80,21 @@ Flow: Requisition → Job description → R&R sheet → Competency mapping → K
 
 Sample data (Grand Master) includes all of this, joined to the sample people.
 
+**Free AI in the QMS** (run `supabase/migrations/0010_ai.sql`; optional keys — see `docs/env.example.txt`)
+
+The AI only drafts and ranks; the HRM's rules decide what is a gap, a need or a finding, and a named person approves
+or accepts everything the AI writes. Every run is logged (QMS › AI & review). No paid service is used: OpenRouter
+(models priced at 0 only), Groq and Google Gemini free tiers, tried in that order. Without a key, or when none answers,
+the rule-based writer is used — nothing stops.
+
+| What the AI does | Who decides |
+| --- | --- |
+| Drafts the position's job description (requisition or “Add a position”) — marked **AI draft — review** | HR edits and approves |
+| Drafts the R&R sheet (roles, responsibilities, authority, competency levels, KPIs with target, frequency, review method) from the approved JD | HR edits and approves |
+| Proposes training programmes for open needs that have none (switched off until accepted) | HR accepts (needs are linked) or rejects |
+| Writes pre / post test questions for a programme | HR corrects answers, removes questions, accepts; then prints the paper and the answer key |
+| QMS agent: fixed-rule findings an auditor would raise, put in order with a reason | HR works on them |
+
 ### Setting up
 
 Follow **docs/SETUP_GUIDE.md**. A new Supabase project needs just one file: `supabase/SETUP_FULL.sql`
@@ -193,6 +208,8 @@ app/                    pages and API routes (Next.js App Router)
   me/                   employee portal
   api/                  passkeys, onboarding uploads, ID card PDF, cron, app icon
 lib/                    auth, tenant resolution, notifications, validation, ID card PDF
+  ai/gateway.ts         free AI gateway (OpenRouter free models → Groq → Gemini), server side only
+  qms/ai.ts             what the AI does in the QMS; every answer checked, rule-based fallback, run log
 supabase/migrations/    database schema + security policies
 scripts/                create-tenant
 docs/                   WhatsApp template texts

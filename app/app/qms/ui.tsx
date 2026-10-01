@@ -1,6 +1,6 @@
 import { p } from "@/lib/base-path";
 
-export type QmsTab = "home" | "skills" | "competency" | "tni" | "plan" | "eff" | "ojt" | "auditors" | "roles" | "kpi" | "pack";
+export type QmsTab = "ai" | "home" | "skills" | "competency" | "tni" | "plan" | "eff" | "ojt" | "auditors" | "roles" | "kpi" | "pack";
 
 export function QmsTabs({ active, hr = true }: { active: QmsTab; hr?: boolean }) {
   // in the order of the flow: position → R&R → competency mapping → KPI sheets → TNI → calendar → effectiveness
@@ -8,7 +8,7 @@ export function QmsTabs({ active, hr = true }: { active: QmsTab; hr?: boolean })
     ["home", "Overview", "/app/qms", true], ["roles", "Positions & R&R", "/app/qms/positions", true], ["competency", "Competency mapping", "/app/qms/competency", true],
     ["kpi", "KPI sheets", "/app/qms/kpi", true], ["tni", "Training needs", "/app/qms/needs", true], ["plan", "Training calendar", "/app/qms/training", true],
     ["eff", "Effectiveness", "/app/qms/effectiveness", true], ["skills", "Skill matrix", "/app/qms/skills", true], ["ojt", "On-the-job", "/app/qms/ojt", true],
-    ["auditors", "Auditors", "/app/qms/auditors", hr], ["pack", "Audit pack", "/app/qms/audit-pack", hr],
+    ["auditors", "Auditors", "/app/qms/auditors", hr], ["pack", "Audit pack", "/app/qms/audit-pack", hr], ["ai", "AI & review", "/app/qms/ai", hr],
   ];
   return <div className="tabs" style={{ marginBottom: 16 }}>{t.filter((x) => x[3]).map(([k, label, href]) => <a key={k} href={p(href)} className={k === active ? "active" : ""}>{label}</a>)}</div>;
 }
@@ -47,3 +47,8 @@ export const monthLabel = (m: string | null | undefined) => {
   const [y, mm] = m.split("-").map(Number);
   return new Date(Date.UTC(y!, mm! - 1, 1)).toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "UTC" });
 };
+
+/** marks what the free AI wrote: "AI draft — review" until a person approves it, then who drafted it */
+export function AiBadge({ model, draft }: { model: string; draft: boolean }) {
+  return <span className={`badge ${draft ? "warn" : ""}`} title={`Drafted by ${model}`} style={{ marginLeft: 6, fontSize: 11 }}>{draft ? "AI draft — review" : "AI-drafted, approved by HR"}</span>;
+}

@@ -10,8 +10,11 @@ import { NEED_SOURCES, NEED_STATUS, addMonths } from "@/lib/qms/rules";
 import { QmsTabs, Clause, PriorityBadge, monthLabel } from "../ui";
 import { people, masters, personLabel } from "../data";
 import { addNeed, buildPlan, findTrainingNeeds, setNeedStatus } from "../actions";
+import { proposeProgramsForNeeds } from "../ai/actions";
+import { aiConfigured } from "@/lib/ai/gateway";
 
 export const metadata = { title: "Training needs (TNI)" };
+export const maxDuration = 60;
 
 interface Need { id: string; employee_id: string; topic: string; source: string; reason: string | null; priority: string; status: string; target_month: string | null;
   session_id: string | null; program_id: string | null; raised_by_name: string | null; created_at: string }
@@ -33,6 +36,7 @@ export default async function NeedsPage({ searchParams }: { searchParams: Promis
     }),
   ]);
   const who = (id: string) => ppl.find((e) => e.id === id);
+  const ai = hr && aiConfigured();
   const month = istToday().slice(0, 7);
   const openN = needs.filter((n) => n.status === "open"), unlinked = openN.filter((n) => !n.program_id).length;
   const bySource = Object.entries(NEED_SOURCES).map(([k, v]) => [k, v, needs.filter((n) => n.source === k).length] as const).filter((x) => x[2]);
@@ -76,7 +80,9 @@ export default async function NeedsPage({ searchParams }: { searchParams: Promis
                 </td>}
               </tr>); })}</tbody>
           </table></div>)}
-        {hr && unlinked > 0 && <p className="muted" style={{ marginBottom: 0 }}>{unlinked} open need{unlinked === 1 ? " has" : "s have"} no programme: add the person to a session on the Training plan, or create a programme for it.</p>}
+        {hr && unlinked > 0 && <div className="muted" style={{ marginBottom: 0, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span>{unlinked} open need{unlinked === 1 ? " has" : "s have"} no programme: add the person to a session on the Training plan, create a programme for it, or let the free AI propose programmes for you to review.</span>
+          {ai && <ActionForm action={proposeProgramsForNeeds} submitLabel="Propose programmes (AI)" pendingLabel="The AI is drafting…" variant="secondary" className="inline" />}</div>}
       </div>
 
       <div className="card">

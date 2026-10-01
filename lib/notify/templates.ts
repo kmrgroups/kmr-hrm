@@ -30,7 +30,11 @@ export type NotificationEvent =
   | "interview_update"
   | "recruit_regret"
   | "offer_letter"
-  | "offer_response";
+  | "offer_response"
+  | "training_invite"
+  | "training_reminder"
+  | "effectiveness_due"
+  | "rr_published";
 
 export interface MessageTemplate {
   subject: string;
@@ -62,11 +66,16 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   recruit_regret: "Not selected — courteous regret (to candidate)",
   offer_letter: "Offer letter with accept / decline link (to candidate)",
   offer_response: "Offer accepted / declined (to HR)",
+  training_invite: "Training invitation (to employee)",
+  training_reminder: "Training reminder, the day before (to employee)",
+  effectiveness_due: "Training effectiveness to evaluate (to supervisor)",
+  rr_published: "Roles & responsibilities to acknowledge (to employee)",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
 export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready",
-  "application_received", "interview_panel", "interview_update", "recruit_regret", "offer_response"];
+  "application_received", "interview_panel", "interview_update", "recruit_regret", "offer_response",
+  "effectiveness_due", "rr_published"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -469,5 +478,65 @@ HR, {{company}}`,
     whatsapp: `{{candidate}} has {{response}} the offer for {{role}}. {{note}}`,
     wa_template: "hrm_offer_response",
     wa_params: ["candidate", "response", "role", "note"],
+  },
+  training_invite: {
+    subject: "Training: {{training}} — {{when}}",
+    email: `Dear {{name}},
+
+You are nominated for the training "{{training}}".
+
+When: {{when}}
+Where: {{venue}}
+Trainer: {{trainer}}
+
+Please be on time. Your attendance is recorded by scanning your ID card, so please bring it.
+
+HR, {{company}}`,
+    whatsapp: `{{company}}: you are nominated for the training "{{training}}" on {{when}} at {{venue}}. Please bring your ID card.`,
+    wa_template: "hrm_training_invite",
+    wa_params: ["company", "training", "when", "venue"],
+  },
+  training_reminder: {
+    subject: "Reminder: training tomorrow — {{training}}",
+    email: `Dear {{name}},
+
+A reminder of your training "{{training}}" tomorrow, {{when}}, at {{venue}}.
+
+Please bring your ID card.
+
+HR, {{company}}`,
+    whatsapp: `Reminder from {{company}}: training "{{training}}" tomorrow, {{when}}, at {{venue}}. Please bring your ID card.`,
+    wa_template: "hrm_training_reminder",
+    wa_params: ["company", "training", "when", "venue"],
+  },
+  effectiveness_due: {
+    subject: "Training effectiveness to evaluate: {{count}} of your team",
+    email: `Dear {{name}},
+
+The training below was some weeks ago. Please check on the job whether it worked, and record the result:
+
+{{list}}
+
+[[Evaluate now|{{link}}]]
+
+If a training did not work, the HRM schedules the training again automatically.
+
+HR, {{company}}`,
+    whatsapp: `{{count}} training evaluations are due for your team. {{link}}`,
+    wa_template: "hrm_effectiveness_due",
+    wa_params: ["count", "link"],
+  },
+  rr_published: {
+    subject: "Your roles and responsibilities — please read and acknowledge",
+    email: `Dear {{name}},
+
+Your roles and responsibilities as {{designation}} (version {{version}}) are published. Please read them and acknowledge in your portal.
+
+[[Read and acknowledge|{{link}}]]
+
+HR, {{company}}`,
+    whatsapp: `Your roles and responsibilities as {{designation}} are published. Please read and acknowledge: {{link}}`,
+    wa_template: "hrm_rr_published",
+    wa_params: ["designation", "link"],
   },
 };

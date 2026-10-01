@@ -57,7 +57,23 @@ two plants, a month of attendance, leave, salaries, loans, and the hiring flow f
 appear on the careers page and are never messaged (their e-mails end in `@demo.kmr.test`). The sample flush removes all
 of it; real-data flushes keep it. Each new module adds its own sample to `hrm.demo_flow`.
 
-The QMS modules (R&R, KPI, competency, skill matrix, training) follow in Phase 5 (see the product spec).
+**Phase 5A — QMS people development** (free; run `supabase/migrations/0008_qms.sql`): HRM › QMS & training
+
+| Area | What works | Clause |
+| --- | --- | --- |
+| Roles & responsibilities | Per designation (optionally per department): purpose, responsibilities, authority, deputy, interfaces; versions; approve → each person acknowledges in *My skills & training*; org chart from the reporting lines | ISO 9001 5.3 |
+| KPIs | Per designation / department with target, direction, weight; monthly values per person; score against target; roll-up by department and plant | ISO 9001 6.2, 9.1 |
+| Competency | Library (18 ready), level each designation needs, assessed level per person in a tap-to-change grid, gaps | IATF 7.2.1 |
+| Skill matrix | Lines and operations (critical, safety); levels 0–4 as quarter circles; qualified = 3–4 for a year; alerts: nobody / too few qualified, no backup, re-certification overdue | IATF 7.2.1, 7.2.3 |
+| Training needs | “Find training needs” from competency gaps, short operations, re-certification, new joiners, yearly awareness; plus process changes, complaints / 8D, audit findings, requests (managers ask for their team) | IATF 7.2.1 |
+| Training plan | Programmes (14 ready); “Put open needs into the plan” makes sessions per programme per month; invitations and day-before reminders (e-mail + WhatsApp); attendance by scanning the ID card's QR with the phone camera or typing the code; pre / post test | ISO 9001 7.2 |
+| Effectiveness | Due 30/60/90 days after; the supervisor records the result, evidence and the new level; not effective → a retraining need automatically | ISO 9001 7.2(c) |
+| On-the-job training | Checklists with customer-specific requirements and consequences of nonconformity; ticked by the trainer, signed off by the supervisor | IATF 7.2.2 |
+| Internal auditors | Register with standards, qualification, validity, core tools, CSR; audits done vs needed; lapse warnings | IATF 7.2.3 |
+| Awareness | Quality policy, objectives and CSR sessions; each person signs off in his portal (or on paper) | IATF 7.3 |
+| Audit Pack | One PDF per department / designation / chosen people, every section with its clause | 7.2 / 7.3 |
+
+Sample data (Grand Master) includes all of this, joined to the sample people.
 
 ### Setting up
 

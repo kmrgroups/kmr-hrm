@@ -25,6 +25,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/payroll", label: "Payroll", icon: "card", show: hasRole(user, ["hr_manager", "payroll"]) },
     { href: "/app/approvals", label: "Approvals", icon: "checklist", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/recruitment", label: "Recruitment", icon: "send", show: hr || hasRole(user, ["manager", "interviewer"]) },
+    { href: "/app/qms", label: "QMS & training", icon: "award", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/onboarding", label: "Onboarding", icon: "inbox", show: hr },
     { href: "/app/id-cards", label: "ID cards", icon: "card", show: hr },
     { href: "/app/notifications", label: "Messages sent", icon: "bell", show: hr },
@@ -36,6 +37,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/settings/leave", label: "Leave policy", icon: "calendar", show: hr },
     { href: "/app/settings/data", label: "Data & backups", icon: "download", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/settings/users", label: "Users & roles", icon: "shield", show: !platform && admin },
+    { href: "/app/settings/qms", label: "QMS settings", icon: "award", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/settings/email", label: "Company email", icon: "send", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/settings/templates", label: "Message templates", icon: "mail", show: hasRole(user, ["hr_manager"]) },
     { href: "/app/audit", label: "Audit trail", icon: "list", show: hasRole(user, ["hr_manager"]) },
@@ -45,6 +47,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/me/attendance", label: "My attendance", icon: "clock", show: !!user.employee_id },
     { href: "/me/leave", label: "My leave", icon: "calendar", show: !!user.employee_id },
     { href: "/me/payslips", label: "My payslips", icon: "download", show: !!user.employee_id },
+    { href: "/me/development", label: "My skills & training", icon: "award", show: !!user.employee_id },
     { href: "/account", label: "My account", icon: "key", show: !platform },
     { href: "/help", label: "Help & support", icon: "inbox", show: true },
   ];

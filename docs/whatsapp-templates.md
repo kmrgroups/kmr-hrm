@@ -107,3 +107,21 @@ Parameters: role, company, "today" / "tomorrow", date and time, venue or video l
 Parameters: name, company, role, CTC, joining date, valid until, offer link. (The offer letter PDF is attached to the e-mail.)
 
 The application acknowledgement, the regret message, the panel invitation and HR alerts go by e-mail only.
+
+## QMS & training (Phase 5A)
+
+Submit these two in Meta Business Manager (category **Utility**). Until they are approved, the same messages go by e-mail.
+
+### hrm_training_invite (Utility)
+
+> {{1}}: you are nominated for the training "{{2}}" on {{3}} at {{4}}. Please bring your ID card.
+
+Parameters: company, training, date and time, venue.
+
+### hrm_training_reminder (Utility)
+
+> Reminder from {{1}}: training "{{2}}" tomorrow, {{3}}, at {{4}}. Please bring your ID card.
+
+Parameters: company, training, time, venue.
+
+"Training effectiveness to evaluate" (to supervisors) and "Roles & responsibilities to acknowledge" go by e-mail only.

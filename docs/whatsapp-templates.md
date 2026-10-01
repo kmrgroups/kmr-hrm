@@ -82,3 +82,28 @@ adjust the wording, keep the variable order, and update the template name under
 > Dear {{1}}, your payslip for {{2}} is ready. Net pay: {{3}}. See and download it here: {{4}}
 
 Parameters: name, month, net pay, link to My payslips. (Payslips are emailed with the PDF attached; WhatsApp is optional.)
+
+## Recruitment (Phase 4)
+
+Candidates who have not messaged you first can only get WhatsApp messages from approved templates. Submit these three
+in Meta Business Manager (category **Utility**). Until they are approved, the same messages go by e-mail only.
+
+### hrm_interview_invite (Utility)
+
+> Dear {{1}}, you are shortlisted for {{2}} at {{3}}. Interview: {{4}}, {{5}}. {{6}}. Please bring: {{7}}. Confirm or ask for another time here: {{8}}
+
+Parameters: name, role, company, date and time, mode, venue or video link, documents to bring, confirm link.
+
+### hrm_interview_reminder (Utility)
+
+> Reminder: your interview for {{1}} at {{2}} is {{3}}, {{4}}. {{5}} Confirm or reschedule: {{6}}
+
+Parameters: role, company, "today" / "tomorrow", date and time, venue or video link, confirm link.
+
+### hrm_offer_letter (Utility)
+
+> Congratulations {{1}}! {{2}} offers you {{3}} with an annual CTC of {{4}}, joining on {{5}}. Please accept or decline by {{6}}: {{7}}
+
+Parameters: name, company, role, CTC, joining date, valid until, offer link. (The offer letter PDF is attached to the e-mail.)
+
+The application acknowledgement, the regret message, the panel invitation and HR alerts go by e-mail only.

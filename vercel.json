@@ -1,6 +1,15 @@
 {
-  "regions": ["bom1"],
+  "regions": [
+    "bom1"
+  ],
   "crons": [
-    { "path": "/it/hrm/api/cron/reminders", "schedule": "35 18 * * *" }
+    {
+      "path": "/it/hrm/api/cron/reminders",
+      "schedule": "35 18 * * *"
+    },
+    {
+      "path": "/it/hrm/api/cron/recruitment",
+      "schedule": "0 3 * * *"
+    }
   ]
 }

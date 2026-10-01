@@ -24,6 +24,7 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/leave", label: "Leave", icon: "calendar", show: hr || hasRole(user, ["payroll"]) },
     { href: "/app/payroll", label: "Payroll", icon: "card", show: hasRole(user, ["hr_manager", "payroll"]) },
     { href: "/app/approvals", label: "Approvals", icon: "checklist", show: hr || hasRole(user, ["manager"]) },
+    { href: "/app/recruitment", label: "Recruitment", icon: "send", show: hr || hasRole(user, ["manager", "interviewer"]) },
     { href: "/app/onboarding", label: "Onboarding", icon: "inbox", show: hr },
     { href: "/app/id-cards", label: "ID cards", icon: "card", show: hr },
     { href: "/app/notifications", label: "Messages sent", icon: "bell", show: hr },

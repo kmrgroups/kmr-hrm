@@ -926,6 +926,953 @@ end $$;
 
 
 -- =====================================================================
+-- 0003_data_tools.sql
+-- =====================================================================
+-- =====================================================================
+-- HRM Suite — data tools: sample data, JSON export / import (restore), nightly backups.
+-- Server-only functions (service key): the app checks the person is a company administrator first.
+-- Safe to re-run.
+-- =====================================================================
+
+-- ---------- sample data (tagged: employees @demo.kmr.test, plants DP1 / DP2) ----------
+create or replace function hrm.demo_load(p_tenant uuid) returns integer
+language plpgsql security definer set search_path = hrm, public as $fn$
+declare
+  t uuid; pfx text; p1 uuid; p2 uuid; d0 date := current_date - 30;
+  fn text[] := array['Arun','Priya','Karthik','Divya','Suresh','Lakshmi','Rahul','Meena','Vijay','Anitha','Manoj','Kavya','Ravi','Deepa','Ganesh','Sowmya','Prakash','Nandini','Harish','Revathi','Naveen','Pooja','Senthil','Bhavya'];
+  ln text[] := array['Kumar','Sharma','Raj','Nair','Reddy','Iyer','Verma','Pillai','Rao','Menon','Gowda','Das','Shetty','Patel','Murthy','Joshi','Babu','Krishnan','Hegde','Naidu','Prasad','Singh','Mani','Rangan'];
+  dept text[] := array['Human Resources','Production','Production','Production','Quality','Quality','Maintenance','Stores','Production Planning & Control','Production','Production','Production','Quality','Maintenance','Production','Production','Engineering','Accounts & Finance','Purchase','Production','Production','EHS','Production','Production'];
+  desig text[] := array['Manager','Supervisor','Operator','Operator','Engineer','Technician','Technician','Senior Operator','Engineer','Operator','Senior Operator','Operator','Technician','Operator','Operator','Operator','Senior Engineer','Assistant Manager','Engineer','Operator','Operator','Engineer','Operator','Operator'];
+  shiftc text[] := array['G','G','A','A','G','A','B','G','G','A','B','B','C','C','A','B','G','G','G',null,null,'G',null,'C'];
+  i int; e uuid; mgr uuid; sid uuid; att text; d date; st int; en int; late int; emp record;
+begin
+  t := p_tenant;
+  select emp_code_prefix into pfx from hrm.tenants where id = t;
+  if pfx is null then raise exception 'Company not found.'; end if;
+  if exists (select 1 from hrm.employees where tenant_id = t and email like '%@demo.kmr.test') then
+    raise exception 'Sample data is already loaded. Flush it first to load it again.';
+  end if;
+
+  select id into p1 from hrm.plants where tenant_id = t and code = 'DP1';
+  if p1 is null then insert into hrm.plants (tenant_id, code, name, state) values (t, 'DP1', 'Plant 1 — Bommasandra', 'Karnataka') returning id into p1; end if;
+  select id into p2 from hrm.plants where tenant_id = t and code = 'DP2';
+  if p2 is null then insert into hrm.plants (tenant_id, code, name, state) values (t, 'DP2', 'Plant 2 — Hosur', 'Tamil Nadu') returning id into p2; end if;
+
+  for i in 1..24 loop
+    select id into sid from hrm.shifts where tenant_id = t and code = shiftc[i];
+    att := (1000 + i)::text;
+    insert into hrm.employees (tenant_id, employee_code, status, first_name, last_name, email, mobile, plant_id,
+        department_id, designation_id, reporting_manager_id, employment_type, category, date_of_joining, gender,
+        shift_id, weekly_offs, attendance_id)
+    values (t, pfx || '-D' || lpad(i::text, 3, '0'), 'active', fn[i], ln[i],
+        lower(fn[i] || '.' || ln[i]) || '@demo.kmr.test', '98450' || lpad((10000 + i * 37)::text, 5, '0'),
+        case when i % 3 = 0 then p2 else p1 end,
+        (select id from hrm.departments where tenant_id = t and name = dept[i]),
+        (select id from hrm.designations where tenant_id = t and name = desig[i]),
+        case when i = 1 then null else mgr end,
+        case when i in (20, 21, 23) then 'contract' else 'permanent' end,
+        case when desig[i] in ('Operator','Senior Operator','Technician') then 'workman' when desig[i] = 'Manager' then 'management' else 'staff' end,
+        current_date - (200 + i * 37), case when i % 2 = 0 then 'female' else 'male' end,
+        sid, case when i % 5 = 0 then '{0,6}'::smallint[] else '{0}'::smallint[] end, att)
+    returning id into e;
+    if i in (1, 2) then mgr := e; end if;
+  end loop;
+
+  -- 30 days of punches: ~93% presence, realistic lateness, a few missed out-punches, night shifts
+  for emp in select e.id, e.attendance_id, e.weekly_offs, s.start_time, s.end_time, s.code
+               from hrm.employees e left join hrm.shifts s on s.id = e.shift_id
+              where e.tenant_id = t and e.email like '%@demo.kmr.test' loop
+    for d in select generate_series(d0, current_date - 1, '1 day')::date loop
+      if extract(dow from d)::int = any(emp.weekly_offs) then continue; end if;
+      if random() < 0.07 then continue; end if;                                         -- absent
+      if emp.code is null then                                                           -- rotating shift: pick by week
+        st := (array[360, 870, 1380])[1 + (extract(week from d)::int % 3)];
+        en := st + 510;
+      else
+        st := extract(hour from emp.start_time)::int * 60 + extract(minute from emp.start_time)::int;
+        en := extract(hour from emp.end_time)::int * 60 + extract(minute from emp.end_time)::int;
+        if en <= st then en := en + 1440; end if;
+      end if;
+      late := case when random() < 0.12 then 12 + (random() * 35)::int else (random() * 16)::int - 12 end;
+      insert into hrm.attendance_punches (tenant_id, employee_id, attendance_id, punched_at, source)
+      values (t, emp.id, emp.attendance_id, (d + make_interval(mins => st + late)) at time zone 'Asia/Kolkata', 'device')
+      on conflict do nothing;
+      if random() > 0.03 then
+        insert into hrm.attendance_punches (tenant_id, employee_id, attendance_id, punched_at, source)
+        values (t, emp.id, emp.attendance_id, (d + make_interval(mins => en + (random() * 50)::int - 8)) at time zone 'Asia/Kolkata', 'device')
+        on conflict do nothing;
+      end if;
+    end loop;
+  end loop;
+
+  -- leave: opening balances for this leave year
+  insert into hrm.leave_ledger (tenant_id, employee_id, leave_type_id, leave_year, kind, days, period, note)
+  select t, e.id, lt.id, extract(year from current_date)::int, 'opening',
+         case lt.code when 'CL' then 6 when 'SL' then 5 when 'EL' then 12 else 2 end,
+         'opening-' || extract(year from current_date)::int, 'Demo opening balance'
+    from hrm.employees e cross join hrm.leave_types lt
+   where e.tenant_id = t and e.email like '%@demo.kmr.test' and lt.tenant_id = t and lt.code in ('CL','SL','EL','CO');
+
+  -- pending requests for the approvals demo
+  insert into hrm.leave_requests (tenant_id, employee_id, leave_type_id, from_date, to_date, days, reason)
+  select t, e.id, (select id from hrm.leave_types where tenant_id = t and code = x.code), current_date + x.off, current_date + x.off + x.len - 1, x.len, x.reason
+    from (values (3, 'CL', 5, 1, 'Family function'), (5, 'EL', 12, 3, 'Native place visit'), (9, 'SL', 2, 1, 'Medical appointment')) x(n, code, off, len, reason)
+    join hrm.employees e on e.tenant_id = t and e.employee_code = pfx || '-D' || lpad(x.n::text, 3, '0');
+  insert into hrm.regularisation_requests (tenant_id, employee_id, work_date, in_time, out_time, reason)
+  select t, e.id, current_date - x.back, x.tin::time, x.tout::time, x.reason
+    from (values (4, 3, '06:00', '14:40', 'Forgot to punch out'), (10, 6, '06:05', '14:35', 'Biometric device was down at gate 2')) x(n, back, tin, tout, reason)
+    join hrm.employees e on e.tenant_id = t and e.employee_code = pfx || '-D' || lpad(x.n::text, 3, '0');
+
+  -- holidays (real Indian holidays for the year; they stay after a flush)
+  insert into hrm.holidays (tenant_id, holiday_date, name)
+  select t, make_date(extract(year from current_date)::int, m, dd), nm
+    from (values (1, 26, 'Republic Day'), (5, 1, 'May Day'), (8, 15, 'Independence Day'), (10, 2, 'Gandhi Jayanti'), (11, 1, 'Kannada Rajyotsava'), (12, 25, 'Christmas')) h(m, dd, nm)
+  on conflict do nothing;
+
+  return (select count(*) from hrm.employees where tenant_id = p_tenant and email like '%@demo.kmr.test');
+end $fn$;
+
+create or replace function hrm.demo_flush(p_tenant uuid) returns integer
+language plpgsql security definer set search_path = hrm, public as $fn$
+declare n integer;
+begin
+  update hrm.employees set reporting_manager_id = null
+   where tenant_id = p_tenant and reporting_manager_id in (select id from hrm.employees where tenant_id = p_tenant and email like '%@demo.kmr.test');
+  delete from hrm.employees where tenant_id = p_tenant and email like '%@demo.kmr.test';
+  get diagnostics n = row_count;
+  delete from hrm.plants p where p.tenant_id = p_tenant and p.code in ('DP1','DP2') and not exists (select 1 from hrm.employees e where e.plant_id = p.id);
+  return n;
+end $fn$;
+
+-- ---------- JSON export: everything that belongs to one company (logins and message logs excluded) ----------
+create or replace function hrm.company_export(p_tenant uuid) returns jsonb
+language plpgsql stable security definer set search_path = hrm, public as $fn$
+declare out jsonb := '{}'::jsonb; t text; rows jsonb;
+begin
+  foreach t in array array['plants','departments','designations','shifts','holidays','leave_types','notification_templates',
+    'employees','employee_private','onboarding_invites','employee_documents','id_cards','attendance_devices',
+    'attendance_punches','attendance_days','regularisation_requests','leave_requests','leave_ledger'] loop
+    if t in ('employee_private') then
+      execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from hrm.%I x where x.employee_id in (select id from hrm.employees where tenant_id = $1)', t) into rows using p_tenant;
+    else
+      execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from hrm.%I x where x.tenant_id = $1', t) into rows using p_tenant;
+    end if;
+    out := out || jsonb_build_object(t, rows);
+  end loop;
+  return jsonb_build_object('format', 'kmr-hrm-backup', 'version', 1, 'exported_at', now(),
+    'company', (select to_jsonb(x) - 'id' from hrm.tenants x where id = p_tenant), 'tenant_id', p_tenant, 'tables', out);
+end $fn$;
+
+-- ---------- JSON import: restores a backup of the SAME company (replaces its data; logins are kept) ----------
+create or replace function hrm.company_import(p_tenant uuid, p_data jsonb) returns jsonb
+language plpgsql security definer set search_path = hrm, public as $fn$
+declare t text; n integer; counts jsonb := '{}'::jsonb; links jsonb;
+  ins text[] := array['plants','departments','designations','shifts','holidays','leave_types','notification_templates',
+    'employees','employee_private','onboarding_invites','employee_documents','id_cards','attendance_devices',
+    'attendance_punches','attendance_days','regularisation_requests','leave_requests','leave_ledger'];
+begin
+  if coalesce(p_data->>'format', '') <> 'kmr-hrm-backup' then raise exception 'This file is not an HRM backup.'; end if;
+  if (p_data->>'tenant_id')::uuid is distinct from p_tenant then raise exception 'This backup belongs to a different company.'; end if;
+  -- remember which login belongs to which employee
+  select coalesce(jsonb_agg(jsonb_build_object('id', id, 'employee_id', employee_id)), '[]') into links from hrm.app_users where tenant_id = p_tenant;
+  -- clear the company's data (children first)
+  delete from hrm.leave_ledger where tenant_id = p_tenant;
+  delete from hrm.leave_requests where tenant_id = p_tenant;
+  delete from hrm.regularisation_requests where tenant_id = p_tenant;
+  delete from hrm.attendance_days where tenant_id = p_tenant;
+  delete from hrm.attendance_punches where tenant_id = p_tenant;
+  delete from hrm.attendance_devices where tenant_id = p_tenant;
+  delete from hrm.id_cards where tenant_id = p_tenant;
+  delete from hrm.employee_documents where tenant_id = p_tenant;
+  delete from hrm.onboarding_invites where tenant_id = p_tenant;
+  update hrm.app_users set employee_id = null where tenant_id = p_tenant;
+  update hrm.employees set reporting_manager_id = null where tenant_id = p_tenant;
+  delete from hrm.employees where tenant_id = p_tenant;
+  delete from hrm.notification_templates where tenant_id = p_tenant;
+  delete from hrm.leave_types where tenant_id = p_tenant;
+  delete from hrm.holidays where tenant_id = p_tenant;
+  delete from hrm.shifts where tenant_id = p_tenant;
+  delete from hrm.designations where tenant_id = p_tenant;
+  delete from hrm.departments where tenant_id = p_tenant;
+  delete from hrm.plants where tenant_id = p_tenant;
+  -- put the backup back (parents first)
+  foreach t in array ins loop
+    if jsonb_typeof(p_data->'tables'->t) <> 'array' then continue; end if;
+    execute format('insert into hrm.%I select * from jsonb_populate_recordset(null::hrm.%I, $1)', t, t) using p_data->'tables'->t;
+    get diagnostics n = row_count; counts := counts || jsonb_build_object(t, n);
+  end loop;
+  -- re-link logins to their employee records, and restore company settings
+  update hrm.app_users u set employee_id = (l->>'employee_id')::uuid
+    from jsonb_array_elements(links) l
+   where u.id = (l->>'id')::uuid and (l->>'employee_id') is not null and exists (select 1 from hrm.employees e where e.id = (l->>'employee_id')::uuid);
+  update hrm.tenants set settings = coalesce(p_data->'company'->'settings', settings),
+         legal_name = coalesce(p_data->'company'->>'legal_name', legal_name),
+         address = coalesce(p_data->'company'->>'address', address)
+   where id = p_tenant;
+  return counts;
+end $fn$;
+
+revoke all on function hrm.demo_load(uuid), hrm.demo_flush(uuid), hrm.company_export(uuid), hrm.company_import(uuid, jsonb) from public, anon, authenticated;
+grant execute on function hrm.demo_load(uuid), hrm.demo_flush(uuid), hrm.company_export(uuid), hrm.company_import(uuid, jsonb) to service_role;
+
+-- ---------- private bucket for nightly backups (kept 7 days) ----------
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('hrm-backups', 'hrm-backups', false, 52428800)
+on conflict (id) do nothing;
+
+
+-- =====================================================================
+-- 0004_company_email.sql
+-- =====================================================================
+-- =====================================================================
+-- HRM — each customer company sends its HR emails from ITS OWN mailbox (Gmail / Google Workspace,
+-- Microsoft 365 / Outlook, Zoho Mail, GoDaddy, Hostinger or any mail server). No KMR address is used.
+-- Until a company connects its mailbox, HRM emails are not sent (WhatsApp and in-app still work).
+-- The mailbox password is stored encrypted by the server; this table is never readable from the browser.
+-- Safe to re-run.
+-- =====================================================================
+create table if not exists hrm.tenant_mail (
+  tenant_id     uuid primary key references hrm.tenants(id) on delete cascade,
+  from_email    text not null,
+  from_name     text,
+  host          text not null,
+  port          integer not null default 587 check (port between 1 and 65535),
+  secure        boolean not null default false,      -- true = SSL on connect (port 465); false = STARTTLS (587)
+  username      text not null,
+  password_enc  text not null,                        -- AES-256-GCM, encrypted by the HRM server
+  verified_at   timestamptz,
+  last_error    text,
+  updated_at    timestamptz not null default now(),
+  updated_by    uuid
+);
+alter table hrm.tenant_mail enable row level security;
+-- no policies: only the server (service role) reads or writes it
+revoke all on hrm.tenant_mail from anon, authenticated;
+
+
+-- =====================================================================
+-- 0005_payroll.sql
+-- =====================================================================
+-- =====================================================================
+-- HRM Phase 3 — Payroll. Needs 0001–0004. Safe to re-run.
+--  • Payroll settings per company (pay days basis, PF / ESI / Professional Tax, overtime, Labour Code wages)
+--  • Salary components (Basic, DA, HRA, Conveyance, Special allowance …) and each employee's salary (with revisions)
+--  • Loans and salary advances, recovered in monthly instalments
+--  • Monthly payroll runs: draft → finalised; one line (payslip) per employee
+-- Who sees what: HR managers and Payroll staff (and company admins) see and run payroll;
+-- each employee sees only their own payslips, and only after the month is finalised.
+-- =====================================================================
+
+-- ---------- settings ----------
+create table if not exists hrm.pay_settings (
+  tenant_id          uuid primary key references hrm.tenants(id) on delete cascade,
+  pay_basis          text not null default 'calendar' check (pay_basis in ('calendar','fixed_26','fixed_30')),
+  lop_source         text not null default 'attendance' check (lop_source in ('attendance','manual')),
+  labour_code_wages  boolean not null default true,        -- PF wages at least 50% of pay (Code on Wages, from 21 Nov 2025)
+  pf_enabled         boolean not null default true,
+  pf_ceiling         numeric(10,2) not null default 15000,  -- change here when the government's ceiling changes
+  pf_restrict        boolean not null default true,         -- contribute on wages up to the ceiling only
+  eps_ceiling        numeric(10,2) not null default 15000,
+  pf_admin_rate      numeric(5,2) not null default 0.5,
+  edli_rate          numeric(5,2) not null default 0.5,
+  esi_enabled        boolean not null default true,
+  esi_threshold      numeric(10,2) not null default 21000,
+  esi_ee_rate        numeric(5,2) not null default 0.75,
+  esi_er_rate        numeric(5,2) not null default 3.25,
+  pt_enabled         boolean not null default true,
+  pt_state           text not null default 'Karnataka',
+  pt_slabs           jsonb not null default '[{"from":0,"amount":0,"feb":0},{"from":25000,"amount":200,"feb":300}]',
+  ot_enabled         boolean not null default true,
+  ot_multiplier      numeric(4,2) not null default 2,       -- Factories Act: twice the ordinary rate
+  hours_per_day      numeric(4,2) not null default 8,
+  payslip_note       text,
+  updated_at         timestamptz not null default now()
+);
+
+create table if not exists hrm.pay_components (
+  id          uuid primary key default gen_random_uuid(),
+  tenant_id   uuid not null references hrm.tenants(id) on delete cascade,
+  code        text not null check (code ~ '^[A-Z0-9_]{2,12}$'),
+  name        text not null check (length(name) between 2 and 60),
+  calc        text not null check (calc in ('percent_gross','percent_basic','fixed','balance')),
+  value       numeric(12,2) not null default 0,
+  is_wages    boolean not null default false,   -- Basic, DA, retaining allowance: "wages" for PF
+  in_ot_base  boolean not null default false,   -- counts for the overtime rate
+  prorate     boolean not null default true,    -- reduced for loss-of-pay days
+  sort_order  integer not null default 0,
+  active      boolean not null default true,
+  created_at  timestamptz not null default now(),
+  unique (tenant_id, code)
+);
+
+-- ---------- salaries ----------
+create table if not exists hrm.salary_structures (
+  id              uuid primary key default gen_random_uuid(),
+  tenant_id       uuid not null references hrm.tenants(id) on delete cascade,
+  employee_id     uuid not null references hrm.employees(id) on delete cascade,
+  effective_from  date not null,
+  monthly_gross   numeric(12,2) not null check (monthly_gross > 0),
+  components      jsonb not null default '[]',          -- [{code, name, amount}] fixed monthly earnings
+  pf_applicable   boolean not null default true,
+  esi_applicable  boolean,                                -- null = automatic by the ESI threshold
+  pt_applicable   boolean not null default true,
+  vpf_percent     numeric(5,2) not null default 0,
+  monthly_tds     numeric(12,2) not null default 0,
+  notes           text,
+  created_by      uuid,
+  created_at      timestamptz not null default now(),
+  unique (employee_id, effective_from)
+);
+create index if not exists salary_structures_emp on hrm.salary_structures (employee_id, effective_from desc);
+
+create table if not exists hrm.loans (
+  id           uuid primary key default gen_random_uuid(),
+  tenant_id    uuid not null references hrm.tenants(id) on delete cascade,
+  employee_id  uuid not null references hrm.employees(id) on delete cascade,
+  kind         text not null default 'loan' check (kind in ('loan','advance')),
+  amount       numeric(12,2) not null check (amount > 0),
+  emi          numeric(12,2) not null check (emi > 0),
+  start_month  text not null check (start_month ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  balance      numeric(12,2) not null,
+  status       text not null default 'active' check (status in ('active','closed')),
+  notes        text,
+  created_by   uuid,
+  created_at   timestamptz not null default now()
+);
+create index if not exists loans_emp on hrm.loans (tenant_id, employee_id, status);
+
+-- ---------- payroll runs ----------
+create table if not exists hrm.payroll_runs (
+  id            uuid primary key default gen_random_uuid(),
+  tenant_id     uuid not null references hrm.tenants(id) on delete cascade,
+  month         text not null check (month ~ '^\d{4}-(0[1-9]|1[0-2])$'),
+  status        text not null default 'draft' check (status in ('draft','finalised')),
+  totals        jsonb not null default '{}',
+  settings      jsonb not null default '{}',     -- the rules used, kept with the run
+  created_by    uuid,
+  created_at    timestamptz not null default now(),
+  computed_at   timestamptz,
+  finalised_at  timestamptz,
+  finalised_by  uuid,
+  emailed_at    timestamptz,
+  unique (tenant_id, month)
+);
+
+create table if not exists hrm.payroll_lines (
+  run_id        uuid not null references hrm.payroll_runs(id) on delete cascade,
+  employee_id   uuid not null references hrm.employees(id) on delete cascade,
+  tenant_id     uuid not null references hrm.tenants(id) on delete cascade,
+  days_in_month numeric(5,2) not null default 0,
+  paid_days     numeric(5,2) not null default 0,
+  lop_days      numeric(5,2) not null default 0,
+  lop_override  numeric(5,2),                     -- set by HR on the run; null = from attendance
+  ot_hours      numeric(7,2) not null default 0,
+  earnings      jsonb not null default '[]',      -- [{code, name, full, amount}]
+  deductions    jsonb not null default '[]',      -- [{code, name, amount}]
+  employer      jsonb not null default '[]',      -- [{code, name, amount}]
+  adjustments   jsonb not null default '[]',      -- [{label, kind: earning|deduction, amount}] added by HR
+  tds_override  numeric(12,2),
+  gross         numeric(12,2) not null default 0,
+  total_deductions numeric(12,2) not null default 0,
+  net_pay       numeric(12,2) not null default 0,
+  pf_wage       numeric(12,2) not null default 0,
+  esi_wage      numeric(12,2) not null default 0,
+  info          jsonb not null default '{}',      -- name, code, designation, department, bank, PAN, UAN, ESI no. at the time
+  notes         text,
+  updated_at    timestamptz not null default now(),
+  primary key (run_id, employee_id)
+);
+create index if not exists payroll_lines_emp on hrm.payroll_lines (employee_id);
+
+create table if not exists hrm.loan_recoveries (
+  loan_id  uuid not null references hrm.loans(id) on delete cascade,
+  run_id   uuid not null references hrm.payroll_runs(id) on delete cascade,
+  tenant_id uuid not null references hrm.tenants(id) on delete cascade,
+  amount   numeric(12,2) not null,
+  primary key (loan_id, run_id)
+);
+
+-- ---------- access ----------
+do $$
+declare t text;
+begin
+  foreach t in array array['pay_settings','pay_components','salary_structures','loans','payroll_runs','payroll_lines','loan_recoveries'] loop
+    execute format('alter table hrm.%I enable row level security', t);
+    execute format('drop policy if exists %I on hrm.%I', t || '_payroll', t);
+    execute format('create policy %I on hrm.%I for all to authenticated using (tenant_id = hrm.current_tenant_id() and hrm.has_role(''hr_manager'',''payroll'')) with check (tenant_id = hrm.current_tenant_id() and hrm.has_role(''hr_manager'',''payroll''))', t || '_payroll', t);
+  end loop;
+end $$;
+-- employees: their own payslips once the month is finalised, and the run header for those months
+-- (helpers read past row-level security, so the two policies do not call each other in a loop)
+create or replace function hrm.payroll_run_final(p_run uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
+  select exists (select 1 from hrm.payroll_runs where id = p_run and status = 'finalised')
+$$;
+create or replace function hrm.payroll_run_mine(p_run uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
+  select exists (select 1 from hrm.payroll_lines where run_id = p_run and employee_id = hrm.current_employee_id())
+$$;
+drop policy if exists payroll_lines_self on hrm.payroll_lines;
+create policy payroll_lines_self on hrm.payroll_lines for select to authenticated
+  using (employee_id = hrm.current_employee_id() and hrm.payroll_run_final(run_id));
+drop policy if exists payroll_runs_self on hrm.payroll_runs;
+create policy payroll_runs_self on hrm.payroll_runs for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and status = 'finalised' and hrm.payroll_run_mine(id));
+drop policy if exists salary_structures_self on hrm.salary_structures;
+create policy salary_structures_self on hrm.salary_structures for select to authenticated
+  using (employee_id = hrm.current_employee_id());
+drop policy if exists loans_self on hrm.loans;
+create policy loans_self on hrm.loans for select to authenticated using (employee_id = hrm.current_employee_id());
+-- the company's payroll rules are not secret (employees see them on payslips)
+drop policy if exists pay_settings_read on hrm.pay_settings;
+create policy pay_settings_read on hrm.pay_settings for select to authenticated using (tenant_id = hrm.current_tenant_id());
+
+-- ---------- defaults for a company ----------
+create or replace function hrm.seed_payroll_defaults(p_tenant uuid) returns void
+language plpgsql security definer set search_path = hrm, public as $fn$
+begin
+  insert into hrm.pay_settings (tenant_id) values (p_tenant) on conflict do nothing;
+  if not exists (select 1 from hrm.pay_components where tenant_id = p_tenant) then
+    insert into hrm.pay_components (tenant_id, code, name, calc, value, is_wages, in_ot_base, prorate, sort_order) values
+      (p_tenant, 'BASIC', 'Basic salary',          'percent_gross', 50, true,  true,  true, 1),
+      (p_tenant, 'DA',    'Dearness allowance',    'fixed',          0, true,  true,  true, 2),
+      (p_tenant, 'HRA',   'House rent allowance',  'percent_basic', 40, false, false, true, 3),
+      (p_tenant, 'CONV',  'Conveyance allowance',  'fixed',       1600, false, false, true, 4),
+      (p_tenant, 'SPL',   'Special allowance',     'balance',        0, false, true,  true, 5);
+  end if;
+end $fn$;
+
+-- sample salaries for the sample employees (used by "Load sample data")
+create or replace function hrm.demo_payroll(p_tenant uuid) returns integer
+language plpgsql security definer set search_path = hrm, public as $fn$
+declare n integer;
+begin
+  perform hrm.seed_payroll_defaults(p_tenant);
+  -- components are left empty: the payroll splits them with the company's components when it works out the month
+  insert into hrm.salary_structures (tenant_id, employee_id, effective_from, monthly_gross, pf_applicable, notes)
+  select e.tenant_id, e.id, coalesce(e.date_of_joining, current_date - 365),
+         case when d.name ilike '%manager%' then 85000 when d.name ilike '%senior engineer%' then 60000
+              when d.name ilike '%engineer%' then 42000 when d.name ilike '%supervisor%' then 32000
+              when d.name ilike '%senior%' then 24000 when d.name ilike '%technician%' then 20000 else 17500 end,
+         true, 'Sample salary'
+    from hrm.employees e left join hrm.designations d on d.id = e.designation_id
+   where e.tenant_id = p_tenant and e.email like '%@demo.kmr.test'
+     and not exists (select 1 from hrm.salary_structures s where s.employee_id = e.id)
+  on conflict do nothing;
+  get diagnostics n = row_count;
+  insert into hrm.loans (tenant_id, employee_id, kind, amount, emi, start_month, balance, notes)
+  select e.tenant_id, e.id, 'loan', 30000, 3000, to_char(current_date - 31, 'YYYY-MM'), 30000, 'Sample loan'
+    from hrm.employees e where e.tenant_id = p_tenant and e.email like '%@demo.kmr.test'
+     and not exists (select 1 from hrm.loans l where l.employee_id = e.id)
+   order by e.employee_code limit 2;
+  return n;
+end $fn$;
+
+revoke all on function hrm.seed_payroll_defaults(uuid), hrm.demo_payroll(uuid) from public, anon, authenticated;
+grant execute on function hrm.seed_payroll_defaults(uuid), hrm.demo_payroll(uuid) to service_role;
+
+-- every existing company gets the defaults
+do $$ declare t uuid; begin for t in select id from hrm.tenants loop perform hrm.seed_payroll_defaults(t); end loop; end $$;
+
+-- ---------- backups include payroll ----------
+create or replace function hrm.company_export(p_tenant uuid) returns jsonb
+language plpgsql stable security definer set search_path = hrm, public as $fn$
+declare out jsonb := '{}'::jsonb; t text; rows jsonb;
+begin
+  foreach t in array array['plants','departments','designations','shifts','holidays','leave_types','notification_templates',
+    'employees','employee_private','onboarding_invites','employee_documents','id_cards','attendance_devices',
+    'attendance_punches','attendance_days','regularisation_requests','leave_requests','leave_ledger',
+    'pay_settings','pay_components','salary_structures','loans','payroll_runs','payroll_lines','loan_recoveries'] loop
+    if t in ('employee_private') then
+      execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from hrm.%I x where x.employee_id in (select id from hrm.employees where tenant_id = $1)', t) into rows using p_tenant;
+    else
+      execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from hrm.%I x where x.tenant_id = $1', t) into rows using p_tenant;
+    end if;
+    out := out || jsonb_build_object(t, rows);
+  end loop;
+  return jsonb_build_object('format', 'kmr-hrm-backup', 'version', 2, 'exported_at', now(),
+    'company', (select to_jsonb(x) - 'id' from hrm.tenants x where id = p_tenant), 'tenant_id', p_tenant, 'tables', out);
+end $fn$;
+
+create or replace function hrm.company_import(p_tenant uuid, p_data jsonb) returns jsonb
+language plpgsql security definer set search_path = hrm, public as $fn$
+declare t text; n integer; counts jsonb := '{}'::jsonb; links jsonb;
+  ins text[] := array['plants','departments','designations','shifts','holidays','leave_types','notification_templates',
+    'employees','employee_private','onboarding_invites','employee_documents','id_cards','attendance_devices',
+    'attendance_punches','attendance_days','regularisation_requests','leave_requests','leave_ledger',
+    'pay_settings','pay_components','salary_structures','loans','payroll_runs','payroll_lines','loan_recoveries'];
+begin
+  if coalesce(p_data->>'format', '') <> 'kmr-hrm-backup' then raise exception 'This file is not an HRM backup.'; end if;
+  if (p_data->>'tenant_id')::uuid is distinct from p_tenant then raise exception 'This backup belongs to a different company.'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', id, 'employee_id', employee_id)), '[]') into links from hrm.app_users where tenant_id = p_tenant;
+  delete from hrm.loan_recoveries where tenant_id = p_tenant;
+  delete from hrm.payroll_lines where tenant_id = p_tenant;
+  delete from hrm.payroll_runs where tenant_id = p_tenant;
+  delete from hrm.loans where tenant_id = p_tenant;
+  delete from hrm.salary_structures where tenant_id = p_tenant;
+  delete from hrm.pay_components where tenant_id = p_tenant;
+  delete from hrm.pay_settings where tenant_id = p_tenant;
+  delete from hrm.leave_ledger where tenant_id = p_tenant;
+  delete from hrm.leave_requests where tenant_id = p_tenant;
+  delete from hrm.regularisation_requests where tenant_id = p_tenant;
+  delete from hrm.attendance_days where tenant_id = p_tenant;
+  delete from hrm.attendance_punches where tenant_id = p_tenant;
+  delete from hrm.attendance_devices where tenant_id = p_tenant;
+  delete from hrm.id_cards where tenant_id = p_tenant;
+  delete from hrm.employee_documents where tenant_id = p_tenant;
+  delete from hrm.onboarding_invites where tenant_id = p_tenant;
+  update hrm.app_users set employee_id = null where tenant_id = p_tenant;
+  update hrm.employees set reporting_manager_id = null where tenant_id = p_tenant;
+  delete from hrm.employees where tenant_id = p_tenant;
+  delete from hrm.notification_templates where tenant_id = p_tenant;
+  delete from hrm.leave_types where tenant_id = p_tenant;
+  delete from hrm.holidays where tenant_id = p_tenant;
+  delete from hrm.shifts where tenant_id = p_tenant;
+  delete from hrm.designations where tenant_id = p_tenant;
+  delete from hrm.departments where tenant_id = p_tenant;
+  delete from hrm.plants where tenant_id = p_tenant;
+  foreach t in array ins loop
+    if jsonb_typeof(p_data->'tables'->t) <> 'array' then continue; end if;
+    execute format('insert into hrm.%I select * from jsonb_populate_recordset(null::hrm.%I, $1)', t, t) using p_data->'tables'->t;
+    get diagnostics n = row_count; counts := counts || jsonb_build_object(t, n);
+  end loop;
+  update hrm.app_users u set employee_id = (l->>'employee_id')::uuid
+    from jsonb_array_elements(links) l
+   where u.id = (l->>'id')::uuid and (l->>'employee_id') is not null and exists (select 1 from hrm.employees e where e.id = (l->>'employee_id')::uuid);
+  update hrm.tenants set settings = coalesce(p_data->'company'->'settings', settings),
+         legal_name = coalesce(p_data->'company'->>'legal_name', legal_name),
+         address = coalesce(p_data->'company'->>'address', address)
+   where id = p_tenant;
+  perform hrm.seed_payroll_defaults(p_tenant);
+  return counts;
+end $fn$;
+
+insert into storage.buckets (id, name, public, file_size_limit) values ('hrm-backups', 'hrm-backups', false, 52428800) on conflict (id) do nothing;
+
+
+-- =====================================================================
+-- 0006_recruitment.sql
+-- =====================================================================
+-- =====================================================================
+-- HRM Phase 4 — Recruitment + Offer. Needs 0001–0005. Safe to re-run.
+--  • Manpower requisitions (raised by HR or a department manager, approved by HR)
+--  • Job descriptions (written from the requisition, edited and approved by HR, reused for the next opening)
+--  • Candidates and their applications to a requisition, with the match score, its evidence and HR's decision
+--  • Interviews with a panel, the candidate's confirm / reschedule link, and each panellist's scorecard
+--  • Offers with the CTC breakup, the candidate's accept / decline link; accepting creates the employee
+-- Who sees what: HR (and company admins) see everything; a manager sees the requisitions they raised;
+-- an interviewer sees only the interviews they sit on (with that candidate) and writes only their own scorecard.
+-- Everything runs without any paid AI service.
+-- =====================================================================
+
+-- ---------- settings ----------
+create table if not exists hrm.recruit_settings (
+  tenant_id          uuid primary key references hrm.tenants(id) on delete cascade,
+  careers_enabled    boolean not null default true,       -- public careers page with the open roles
+  careers_intro      text check (length(careers_intro) <= 2000),
+  req_approval       boolean not null default true,       -- a manager's requisition waits for HR approval
+  suitable_score     integer not null default 70 check (suitable_score between 1 and 100),
+  hold_score         integer not null default 50 check (hold_score between 0 and 99),
+  regret_auto        boolean not null default true,       -- courteous regret message to declined candidates
+  regret_delay_days  integer not null default 3 check (regret_delay_days between 0 and 30),
+  offer_valid_days   integer not null default 7 check (offer_valid_days between 1 and 60),
+  gratuity_in_ctc    boolean not null default true,       -- show gratuity (4.81% of basic) as part of CTC
+  offer_signatory    text check (length(offer_signatory) <= 120),
+  offer_terms        text check (length(offer_terms) <= 6000),
+  updated_at         timestamptz not null default now()
+);
+
+-- ---------- job descriptions (reusable per designation, version-controlled) ----------
+create table if not exists hrm.job_descriptions (
+  id               uuid primary key default gen_random_uuid(),
+  tenant_id        uuid not null references hrm.tenants(id) on delete cascade,
+  designation_id   uuid references hrm.designations(id) on delete set null,
+  title            text not null check (length(title) between 2 and 120),
+  family           text,                                  -- quality, production, maintenance … (drives the template)
+  purpose          text check (length(purpose) <= 2000),
+  responsibilities text[] not null default '{}',
+  kpis             text[] not null default '{}',
+  must_have        jsonb not null default '[]',          -- [{name, weight 1–3}] competencies the role cannot do without
+  good_to_have     jsonb not null default '[]',
+  qualifications   text check (length(qualifications) <= 1000),
+  experience       text check (length(experience) <= 300),
+  reporting_to     text check (length(reporting_to) <= 120),
+  context          text check (length(context) <= 600),  -- operating context: industry, plant type, standards
+  outcomes         text[] not null default '{}',          -- results the role must deliver
+  version          integer not null default 1,
+  status           text not null default 'draft' check (status in ('draft','approved','archived')),
+  approved_by      uuid,
+  approved_at      timestamptz,
+  created_by       uuid,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+create index if not exists job_descriptions_desig on hrm.job_descriptions (tenant_id, designation_id, version desc);
+
+-- ---------- requisitions ----------
+create table if not exists hrm.requisitions (
+  id               uuid primary key default gen_random_uuid(),
+  tenant_id        uuid not null references hrm.tenants(id) on delete cascade,
+  ref_no           text not null,
+  title            text not null check (length(title) between 2 and 120),
+  designation_id   uuid references hrm.designations(id) on delete set null,
+  department_id    uuid references hrm.departments(id) on delete set null,
+  plant_id         uuid references hrm.plants(id) on delete set null,
+  headcount        integer not null default 1 check (headcount between 1 and 500),
+  grade            text check (length(grade) <= 40),
+  ctc_min          numeric(12,2) check (ctc_min >= 0),     -- yearly, rupees
+  ctc_max          numeric(12,2) check (ctc_max >= 0),
+  exp_min          numeric(4,1) check (exp_min >= 0),
+  exp_max          numeric(4,1) check (exp_max >= 0),
+  reason           text not null default 'new' check (reason in ('new','replacement','project')),
+  replacement_for  text check (length(replacement_for) <= 120),
+  required_by      date,
+  location         text check (length(location) <= 120),
+  notice_max_days  integer check (notice_max_days between 0 and 365),
+  jd_id            uuid references hrm.job_descriptions(id) on delete set null,
+  status           text not null default 'draft' check (status in ('draft','pending','approved','open','on_hold','closed','cancelled')),
+  published        boolean not null default false,        -- shown on the careers page while open
+  raised_by        uuid,
+  raised_by_name   text,
+  approved_by      uuid,
+  approved_at      timestamptz,
+  closed_at        timestamptz,
+  notes            text check (length(notes) <= 2000),
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  unique (tenant_id, ref_no)
+);
+create index if not exists requisitions_status on hrm.requisitions (tenant_id, status, created_at desc);
+
+-- ---------- candidates (one per person per company; duplicates merged by e-mail / mobile) ----------
+create table if not exists hrm.candidates (
+  id                  uuid primary key default gen_random_uuid(),
+  tenant_id           uuid not null references hrm.tenants(id) on delete cascade,
+  full_name           text not null check (length(full_name) between 1 and 120),
+  email               text check (email = lower(email)),
+  phone               text,
+  location            text,
+  current_company     text,
+  current_designation text,
+  total_exp           numeric(4,1),
+  current_ctc         numeric(12,2),                     -- yearly, rupees
+  expected_ctc        numeric(12,2),
+  notice_days         integer,
+  education           text,
+  skills              text[] not null default '{}',
+  resume_path         text,
+  resume_name         text,
+  resume_text         text,
+  parse_status        text not null default 'manual' check (parse_status in ('parsed','scanned','failed','manual')),
+  source              text not null default 'upload' check (source in ('upload','careers','referral','manual','import')),
+  consent_at          timestamptz,                         -- careers page: consent to process the resume (DPDP Act)
+  created_by          uuid,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+create unique index if not exists candidates_email on hrm.candidates (tenant_id, email) where email is not null;
+create unique index if not exists candidates_phone on hrm.candidates (tenant_id, phone) where phone is not null;
+
+-- ---------- applications: a candidate for a requisition ----------
+create table if not exists hrm.applications (
+  id               uuid primary key default gen_random_uuid(),
+  tenant_id        uuid not null references hrm.tenants(id) on delete cascade,
+  requisition_id   uuid not null references hrm.requisitions(id) on delete cascade,
+  candidate_id     uuid not null references hrm.candidates(id) on delete cascade,
+  score            integer check (score between 0 and 100),
+  breakdown        jsonb not null default '[]',          -- [{key, label, points, max, note}]
+  evidence         jsonb not null default '[]',          -- [{competency, line}]
+  flags            text[] not null default '{}',          -- hard constraints not met (notice, CTC, location …)
+  recommendation   text check (recommendation in ('suitable','hold','not_suitable')),
+  status           text not null default 'new' check (status in ('new','shortlisted','on_hold','declined','interview','selected','offered','joined','withdrawn')),
+  decision_by      uuid,
+  decision_at      timestamptz,
+  decision_reason  text check (length(decision_reason) <= 500),
+  overridden       boolean not null default false,        -- HR's decision differs from the recommendation
+  regret_due       date,
+  regret_sent_at   timestamptz,
+  source           text,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  unique (requisition_id, candidate_id)
+);
+create index if not exists applications_req on hrm.applications (requisition_id, score desc nulls last);
+create index if not exists applications_cand on hrm.applications (candidate_id);
+
+-- ---------- interviews and scorecards ----------
+create table if not exists hrm.interviews (
+  id                 uuid primary key default gen_random_uuid(),
+  tenant_id          uuid not null references hrm.tenants(id) on delete cascade,
+  application_id     uuid not null references hrm.applications(id) on delete cascade,
+  round              integer not null default 1 check (round between 1 and 9),
+  title              text not null default 'Interview' check (length(title) <= 80),
+  mode               text not null default 'in_person' check (mode in ('in_person','video','phone')),
+  starts_at          timestamptz not null,
+  duration_min       integer not null default 45 check (duration_min between 10 and 480),
+  venue              text check (length(venue) <= 300),
+  video_link         text check (length(video_link) <= 500),
+  bring              text check (length(bring) <= 500),   -- documents to bring
+  panel              uuid[] not null default '{}',        -- app_users ids
+  panel_names        text[] not null default '{}',
+  status             text not null default 'scheduled' check (status in ('scheduled','confirmed','reschedule_requested','done','cancelled','no_show')),
+  token_hash         text,                                 -- candidate's confirm / reschedule link
+  candidate_note     text check (length(candidate_note) <= 500),
+  reminded_day_before boolean not null default false,
+  reminded_same_day  boolean not null default false,
+  created_by         uuid,
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+create index if not exists interviews_when on hrm.interviews (tenant_id, starts_at);
+create index if not exists interviews_app on hrm.interviews (application_id);
+create index if not exists interviews_token on hrm.interviews (token_hash) where token_hash is not null;
+
+create table if not exists hrm.interview_feedback (
+  id              uuid primary key default gen_random_uuid(),
+  tenant_id       uuid not null references hrm.tenants(id) on delete cascade,
+  interview_id    uuid not null references hrm.interviews(id) on delete cascade,
+  panelist_id     uuid not null,
+  panelist_name   text,
+  scores          jsonb not null default '{}',            -- {competency: 1–5}
+  overall         integer check (overall between 1 and 5),
+  recommendation  text check (recommendation in ('strong_hire','hire','hold','no_hire')),
+  strengths       text check (length(strengths) <= 1500),
+  concerns        text check (length(concerns) <= 1500),
+  submitted_at    timestamptz not null default now(),
+  unique (interview_id, panelist_id)
+);
+
+-- ---------- offers ----------
+create table if not exists hrm.offers (
+  id                    uuid primary key default gen_random_uuid(),
+  tenant_id             uuid not null references hrm.tenants(id) on delete cascade,
+  application_id        uuid not null references hrm.applications(id) on delete cascade,
+  ref_no                text not null,
+  designation_id        uuid references hrm.designations(id) on delete set null,
+  department_id         uuid references hrm.departments(id) on delete set null,
+  plant_id              uuid references hrm.plants(id) on delete set null,
+  reporting_manager_id  uuid references hrm.employees(id) on delete set null,
+  employment_type       text not null default 'probation' check (employment_type in ('permanent','probation','fixed_term','trainee','apprentice','contract')),
+  category              text not null default 'staff' check (category in ('staff','workman','management')),
+  date_of_joining       date not null,
+  annual_ctc            numeric(12,2) not null check (annual_ctc > 0),
+  monthly_gross         numeric(12,2) not null check (monthly_gross > 0),
+  breakup               jsonb not null default '{}',     -- earnings, employer contributions, deductions, net, ctc
+  pf_applicable         boolean not null default true,
+  include_gratuity      boolean not null default true,
+  valid_until           date not null,
+  status                text not null default 'draft' check (status in ('draft','sent','accepted','declined','expired','withdrawn')),
+  token_hash            text,
+  sent_at               timestamptz,
+  viewed_at             timestamptz,
+  responded_at          timestamptz,
+  accepted_name         text check (length(accepted_name) <= 120),   -- typed name as the candidate's signature
+  decline_reason        text check (length(decline_reason) <= 500),
+  employee_id           uuid references hrm.employees(id) on delete set null,
+  terms                 text check (length(terms) <= 6000),
+  created_by            uuid,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now(),
+  unique (tenant_id, ref_no)
+);
+create index if not exists offers_app on hrm.offers (application_id);
+create index if not exists offers_token on hrm.offers (token_hash) where token_hash is not null;
+
+-- ---------- updated_at ----------
+do $$ declare t text; begin
+  foreach t in array array['recruit_settings','job_descriptions','requisitions','candidates','applications','interviews','offers'] loop
+    execute format('drop trigger if exists %I on hrm.%I', t || '_touch', t);
+    execute format('create trigger %I before update on hrm.%I for each row execute function hrm.touch_updated_at()', t || '_touch', t);
+  end loop;
+end $$;
+
+-- ---------- access ----------
+-- helpers read past row-level security, so the policies below do not call each other in a loop
+create or replace function hrm.on_panel(p_application uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
+  select exists (select 1 from hrm.interviews i where i.application_id = p_application and auth.uid() = any(i.panel))
+$$;
+create or replace function hrm.on_panel_for_candidate(p_candidate uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
+  select exists (select 1 from hrm.interviews i join hrm.applications a on a.id = i.application_id
+                  where a.candidate_id = p_candidate and auth.uid() = any(i.panel))
+$$;
+create or replace function hrm.on_panel_for_requisition(p_req uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
+  select exists (select 1 from hrm.interviews i join hrm.applications a on a.id = i.application_id
+                  where a.requisition_id = p_req and auth.uid() = any(i.panel))
+$$;
+create or replace function hrm.raised_by_me(p_req uuid) returns boolean
+language sql stable security definer set search_path = hrm, public as $$
+  select exists (select 1 from hrm.requisitions r where r.id = p_req and r.raised_by = auth.uid())
+$$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['recruit_settings','job_descriptions','requisitions','candidates','applications','interviews','interview_feedback','offers'] loop
+    execute format('alter table hrm.%I enable row level security', t);
+    execute format('drop policy if exists %I on hrm.%I', t || '_hr', t);
+    execute format('create policy %I on hrm.%I for all to authenticated using (tenant_id = hrm.current_tenant_id() and hrm.is_hr()) with check (tenant_id = hrm.current_tenant_id() and hrm.is_hr())', t || '_hr', t);
+  end loop;
+end $$;
+
+-- staff read the company's recruitment rules and approved job descriptions
+drop policy if exists recruit_settings_read on hrm.recruit_settings;
+create policy recruit_settings_read on hrm.recruit_settings for select to authenticated using (tenant_id = hrm.current_tenant_id());
+drop policy if exists job_descriptions_staff on hrm.job_descriptions;
+create policy job_descriptions_staff on hrm.job_descriptions for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.has_role('manager','interviewer'));
+
+-- a manager raises requisitions and follows the ones they raised
+drop policy if exists requisitions_manager_read on hrm.requisitions;
+create policy requisitions_manager_read on hrm.requisitions for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and (raised_by = auth.uid() or hrm.on_panel_for_requisition(id)));
+drop policy if exists requisitions_manager_add on hrm.requisitions;
+create policy requisitions_manager_add on hrm.requisitions for insert to authenticated
+  with check (tenant_id = hrm.current_tenant_id() and hrm.has_role('manager') and raised_by = auth.uid() and status in ('draft','pending'));
+drop policy if exists requisitions_manager_edit on hrm.requisitions;
+create policy requisitions_manager_edit on hrm.requisitions for update to authenticated
+  using (tenant_id = hrm.current_tenant_id() and raised_by = auth.uid() and status in ('draft','pending'))
+  with check (tenant_id = hrm.current_tenant_id() and raised_by = auth.uid() and status in ('draft','pending'));
+-- the manager who raised it sees who applied
+drop policy if exists applications_manager on hrm.applications;
+create policy applications_manager on hrm.applications for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and (hrm.raised_by_me(requisition_id) or hrm.on_panel(id)));
+
+-- interviewers: the interviews they sit on, that candidate, and their own scorecard
+drop policy if exists interviews_panel on hrm.interviews;
+create policy interviews_panel on hrm.interviews for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and auth.uid() = any(panel));
+drop policy if exists candidates_panel on hrm.candidates;
+create policy candidates_panel on hrm.candidates for select to authenticated
+  using (tenant_id = hrm.current_tenant_id() and hrm.on_panel_for_candidate(id));
+drop policy if exists feedback_own on hrm.interview_feedback;
+create policy feedback_own on hrm.interview_feedback for all to authenticated
+  using (tenant_id = hrm.current_tenant_id() and panelist_id = auth.uid())
+  with check (tenant_id = hrm.current_tenant_id() and panelist_id = auth.uid()
+              and exists (select 1 from hrm.interviews i where i.id = interview_id and auth.uid() = any(i.panel)));
+
+-- ---------- audit trail ----------
+do $$ declare t text; begin
+  foreach t in array array['recruit_settings','job_descriptions','requisitions','candidates','applications','interviews','interview_feedback','offers'] loop
+    execute format('drop trigger if exists %I on hrm.%I', t || '_audit', t);
+    execute format('create trigger %I after insert or update or delete on hrm.%I for each row execute function hrm.audit_row()', t || '_audit', t);
+  end loop;
+end $$;
+-- recruit_settings has no id column: the audit entry uses tenant_id (audit_row falls back to employee_id, which is null here)
+
+-- ---------- resumes: private bucket, reached only through short-lived signed links ----------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values
+  ('hrm-resumes', 'hrm-resumes', false, 5242880,
+   array['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/msword','text/plain','image/png','image/jpeg'])
+on conflict (id) do nothing;
+
+-- ---------- defaults for a company ----------
+create or replace function hrm.seed_recruit_defaults(p_tenant uuid) returns void
+language plpgsql security definer set search_path = hrm, public as $fn$
+begin
+  insert into hrm.recruit_settings (tenant_id, offer_terms) values (p_tenant,
+'1. This offer is subject to satisfactory verification of your documents, background and references, and to your being medically fit.
+2. You will be on probation for six months from the date of joining; on successful completion you will be confirmed in writing.
+3. Your salary details are confidential. Statutory deductions (PF, ESI, Professional Tax, Income Tax) are made as per law.
+4. Either party may end the employment with the notice period stated in the company''s service rules, or salary in lieu of notice.
+5. You will follow the company''s policies, standing orders, safety rules and code of conduct as amended from time to time.')
+  on conflict do nothing;
+end $fn$;
+revoke all on function hrm.seed_recruit_defaults(uuid) from public, anon, authenticated;
+grant execute on function hrm.seed_recruit_defaults(uuid) to service_role;
+do $$ declare t uuid; begin for t in select id from hrm.tenants loop perform hrm.seed_recruit_defaults(t); end loop; end $$;
+
+-- ---------- backups include recruitment ----------
+create or replace function hrm.company_export(p_tenant uuid) returns jsonb
+language plpgsql stable security definer set search_path = hrm, public as $fn$
+declare out jsonb := '{}'::jsonb; t text; rows jsonb;
+begin
+  foreach t in array array['plants','departments','designations','shifts','holidays','leave_types','notification_templates',
+    'employees','employee_private','onboarding_invites','employee_documents','id_cards','attendance_devices',
+    'attendance_punches','attendance_days','regularisation_requests','leave_requests','leave_ledger',
+    'pay_settings','pay_components','salary_structures','loans','payroll_runs','payroll_lines','loan_recoveries',
+    'recruit_settings','job_descriptions','requisitions','candidates','applications','interviews','interview_feedback','offers'] loop
+    if to_regclass('hrm.' || t) is null then continue; end if;
+    if t in ('employee_private') then
+      execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from hrm.%I x where x.employee_id in (select id from hrm.employees where tenant_id = $1)', t) into rows using p_tenant;
+    else
+      execute format('select coalesce(jsonb_agg(to_jsonb(x)), ''[]'') from hrm.%I x where x.tenant_id = $1', t) into rows using p_tenant;
+    end if;
+    out := out || jsonb_build_object(t, rows);
+  end loop;
+  return jsonb_build_object('format', 'kmr-hrm-backup', 'version', 3, 'exported_at', now(),
+    'company', (select to_jsonb(x) - 'id' from hrm.tenants x where id = p_tenant), 'tenant_id', p_tenant, 'tables', out);
+end $fn$;
+
+create or replace function hrm.company_import(p_tenant uuid, p_data jsonb) returns jsonb
+language plpgsql security definer set search_path = hrm, public as $fn$
+declare t text; n integer; counts jsonb := '{}'::jsonb; links jsonb;
+  ins text[] := array['plants','departments','designations','shifts','holidays','leave_types','notification_templates',
+    'employees','employee_private','onboarding_invites','employee_documents','id_cards','attendance_devices',
+    'attendance_punches','attendance_days','regularisation_requests','leave_requests','leave_ledger',
+    'pay_settings','pay_components','salary_structures','loans','payroll_runs','payroll_lines','loan_recoveries',
+    'recruit_settings','job_descriptions','requisitions','candidates','applications','interviews','interview_feedback','offers'];
+begin
+  if coalesce(p_data->>'format', '') <> 'kmr-hrm-backup' then raise exception 'This file is not an HRM backup.'; end if;
+  if (p_data->>'tenant_id')::uuid is distinct from p_tenant then raise exception 'This backup belongs to a different company.'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('id', id, 'employee_id', employee_id)), '[]') into links from hrm.app_users where tenant_id = p_tenant;
+  delete from hrm.offers where tenant_id = p_tenant;
+  delete from hrm.interview_feedback where tenant_id = p_tenant;
+  delete from hrm.interviews where tenant_id = p_tenant;
+  delete from hrm.applications where tenant_id = p_tenant;
+  delete from hrm.candidates where tenant_id = p_tenant;
+  delete from hrm.requisitions where tenant_id = p_tenant;
+  delete from hrm.job_descriptions where tenant_id = p_tenant;
+  delete from hrm.recruit_settings where tenant_id = p_tenant;
+  delete from hrm.loan_recoveries where tenant_id = p_tenant;
+  delete from hrm.payroll_lines where tenant_id = p_tenant;
+  delete from hrm.payroll_runs where tenant_id = p_tenant;
+  delete from hrm.loans where tenant_id = p_tenant;
+  delete from hrm.salary_structures where tenant_id = p_tenant;
+  delete from hrm.pay_components where tenant_id = p_tenant;
+  delete from hrm.pay_settings where tenant_id = p_tenant;
+  delete from hrm.leave_ledger where tenant_id = p_tenant;
+  delete from hrm.leave_requests where tenant_id = p_tenant;
+  delete from hrm.regularisation_requests where tenant_id = p_tenant;
+  delete from hrm.attendance_days where tenant_id = p_tenant;
+  delete from hrm.attendance_punches where tenant_id = p_tenant;
+  delete from hrm.attendance_devices where tenant_id = p_tenant;
+  delete from hrm.id_cards where tenant_id = p_tenant;
+  delete from hrm.employee_documents where tenant_id = p_tenant;
+  delete from hrm.onboarding_invites where tenant_id = p_tenant;
+  update hrm.app_users set employee_id = null where tenant_id = p_tenant;
+  update hrm.employees set reporting_manager_id = null where tenant_id = p_tenant;
+  delete from hrm.employees where tenant_id = p_tenant;
+  delete from hrm.notification_templates where tenant_id = p_tenant;
+  delete from hrm.leave_types where tenant_id = p_tenant;
+  delete from hrm.holidays where tenant_id = p_tenant;
+  delete from hrm.shifts where tenant_id = p_tenant;
+  delete from hrm.designations where tenant_id = p_tenant;
+  delete from hrm.departments where tenant_id = p_tenant;
+  delete from hrm.plants where tenant_id = p_tenant;
+  foreach t in array ins loop
+    if jsonb_typeof(p_data->'tables'->t) <> 'array' then continue; end if;
+    execute format('insert into hrm.%I select * from jsonb_populate_recordset(null::hrm.%I, $1)', t, t) using p_data->'tables'->t;
+    get diagnostics n = row_count; counts := counts || jsonb_build_object(t, n);
+  end loop;
+  update hrm.app_users u set employee_id = (l->>'employee_id')::uuid
+    from jsonb_array_elements(links) l
+   where u.id = (l->>'id')::uuid and (l->>'employee_id') is not null and exists (select 1 from hrm.employees e where e.id = (l->>'employee_id')::uuid);
+  update hrm.tenants set settings = coalesce(p_data->'company'->'settings', settings),
+         legal_name = coalesce(p_data->'company'->>'legal_name', legal_name),
+         address = coalesce(p_data->'company'->>'address', address)
+   where id = p_tenant;
+  perform hrm.seed_payroll_defaults(p_tenant);
+  perform hrm.seed_recruit_defaults(p_tenant);
+  return counts;
+end $fn$;
+revoke all on function hrm.company_export(uuid), hrm.company_import(uuid, jsonb) from public, anon, authenticated;
+grant execute on function hrm.company_export(uuid), hrm.company_import(uuid, jsonb) to service_role;
+
+
+-- =====================================================================
 -- Your company, plant, web address and first admin
 -- =====================================================================
 do $$

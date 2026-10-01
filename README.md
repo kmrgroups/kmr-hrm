@@ -36,7 +36,21 @@ each customer's own domain (`hr.customer.com`) with their logo and colours.
 | Leave | Leave types with yearly or monthly credit, pro-rating for joiners, carry-forward limits, half days, notice periods, sandwich rule, loss of pay. Apply, approve, reject, cancel with credit back; HR records leave for people without logins; opening balances by CSV; year-end close |
 | Balances | Kept as a ledger, so every balance can be explained line by line |
 
-Payroll, recruitment and the QMS modules follow in Phases 3–5 (see the product spec).
+**Phase 4 — Recruitment + Offer** (free: no paid AI service; run `supabase/migrations/0006_recruitment.sql`):
+
+| Area | What works |
+| --- | --- |
+| Requisitions | Raised by HR (approved at once) or a department manager (waits for HR approval); headcount, salary band, experience band, notice limit, location; approve, open, hold, close, cancel; reference numbers REQ-YYYY-NNN |
+| Job description | Written instantly from the requisition by role family (quality, production, maintenance, engineering, planning, purchase, HR, accounts, sales, safety, IT, operator): purpose, responsibilities, KPIs, weighted must-have competencies, qualification. HR edits and approves; an approved JD is version-controlled and reused for the next opening of the same designation; text ready for Naukri / LinkedIn / Indeed |
+| Resumes | Bulk upload (many files or a ZIP of up to 500), careers-page applications, or a candidate added by hand. PDF, Word (.docx / .doc) and text are read on the server; scans and photos are marked so HR can type the facts. The same person (e-mail or mobile) is kept once |
+| Match score | 0–100 in seven explained parts (must-have competencies, good-to-have, experience, industry context, measurable results, qualification, notice / salary / location), quoting the resume lines that prove each competency. Recognises capability in everyday words ("reduced rejection from 2.1% to 0.6%" = quality improvement). Hard limits are flagged; a resume that breaks one is never a straight "Suitable" |
+| Decisions | Shortlist / hold / select / decline with a reason; overriding the recommendation needs a reason (kept). Declined candidates get a courteous regret message after a set number of days |
+| Interviews | Rounds with a panel; candidate gets e-mail + WhatsApp with a confirm / reschedule link; panel gets an e-mail with a calendar invite (.ics); reminders the day before and on the morning; interviewers (HRM role "Interviewer") see only their interviews and fill in a scorecard per JD competency; the panel's disagreement is flagged |
+| Offers | CTC breakup worked out by the payroll engine itself (PF, ESI, PT, gratuity), from a yearly CTC or a monthly gross; offer letter PDF with salary annexure; candidate accepts by typing their name, or declines with a reason; offers lapse after their validity |
+| Hand-off | An accepted offer creates the new joiner (status invited), their salary from the offer date of joining, and sends the self-onboarding link automatically |
+| Careers page | `/careers?co=<company>` lists the open roles HR chose to show; each role page has the JD and an apply form with consent (DPDP Act) |
+
+The QMS modules (R&R, KPI, competency, skill matrix, training) follow in Phase 5 (see the product spec).
 
 ### Setting up
 

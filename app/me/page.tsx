@@ -1,6 +1,6 @@
 import { p } from "@/lib/base-path";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireSession, homeFor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { signedDocUrls } from "@/lib/storage";
@@ -17,7 +17,7 @@ export const metadata = { title: "My portal" };
 export default async function MyPortal() {
   const session = await requireSession();
   if (session.user.must_change_password) redirect("/account?first=1");
-  if (!session.user.employee_id) redirect("/app");
+  if (!session.user.employee_id) { const h = homeFor(session.user); redirect(h === "/me" ? "/account" : h); }
   const supabase = await createClient();
   const id = session.user.employee_id;
 

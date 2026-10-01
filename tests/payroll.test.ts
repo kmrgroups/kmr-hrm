@@ -52,4 +52,6 @@ eq("H bonus, canteen, TDS", [r.gross, r.deductions.find((d) => d.code === "TDS")
 
 eq("I words", rupeesInWords(125430), "One Lakh Twenty Five Thousand Four Hundred Thirty Rupees Only");
 eq("J small salary split never exceeds gross", splitGross(3000, C).reduce((a, c) => a + c.amount, 0), 3000);
-console.log(fails ? `${fails} FAILED` : "ALL PASS"); process.exit(fails ? 1 : 0);
+// runs under vitest (npm test) and on its own (node): one check holds all the rules above
+if (process.env.VITEST) { const { it, expect } = await import("vitest"); it("payroll rules", () => expect(fails).toBe(0)); }
+else { console.log(fails ? `${fails} FAILED` : "ALL PASS"); process.exit(fails ? 1 : 0); }

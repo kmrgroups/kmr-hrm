@@ -52,7 +52,8 @@ export function isHr(user: AppUser) {
 /** For pages: redirects employees to their portal. */
 export async function requireRole(roles: Role[]): Promise<Session> {
   const s = await requireSession();
-  if (!hasRole(s.user, roles)) redirect("/me");
+  // not for this person: their own home page (never a page that sends them back here)
+  if (!hasRole(s.user, roles)) redirect(homeFor(s.user));
   return s;
 }
 
@@ -75,5 +76,6 @@ export async function assertRole(roles: Role[]): Promise<Session> {
 /** Where a user lands after signing in */
 export function homeFor(user: AppUser): string {
   if (user.must_change_password) return "/account?first=1";
-  return isHr(user) || hasRole(user, ["payroll", "manager"]) ? "/app" : "/me";
+  if (isHr(user) || hasRole(user, ["payroll", "manager"])) return "/app";
+  return user.role === "interviewer" ? "/app/recruitment/interviews" : "/me";
 }

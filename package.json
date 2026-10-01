@@ -15,6 +15,7 @@
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@types/nodemailer": "^8.0.2",
+    "fflate": "^0.8.3",
     "next": "^15.5.26",
     "nodemailer": "^6.10.1",
     "pdf-lib": "^1.17.1",
@@ -23,6 +24,7 @@
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
     "three": "^0.160.0",
+    "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -22,7 +22,15 @@ export type NotificationEvent =
   | "regularisation_applied"
   | "regularisation_decided"
   | "login_code"
-  | "payslip_ready";
+  | "payslip_ready"
+  | "application_received"
+  | "interview_invite"
+  | "interview_panel"
+  | "interview_reminder"
+  | "interview_update"
+  | "recruit_regret"
+  | "offer_letter"
+  | "offer_response";
 
 export interface MessageTemplate {
   subject: string;
@@ -46,10 +54,19 @@ export const EVENT_LABELS: Record<NotificationEvent, string> = {
   regularisation_decided: "Attendance correction approved / rejected (to employee)",
   login_code: "Sign-in code",
   payslip_ready: "Payslip for the month (with PDF)",
+  application_received: "Application received (to candidate)",
+  interview_invite: "Shortlisted — interview details (to candidate)",
+  interview_panel: "Interview scheduled (to panel, with calendar invite)",
+  interview_reminder: "Interview reminder (to candidate)",
+  interview_update: "Candidate confirmed / asked to reschedule (to HR)",
+  recruit_regret: "Not selected — courteous regret (to candidate)",
+  offer_letter: "Offer letter with accept / decline link (to candidate)",
+  offer_response: "Offer accepted / declined (to HR)",
 };
 
 /** Events sent by email only until their WhatsApp templates are approved by Meta */
-export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready"];
+export const EMAIL_ONLY_EVENTS: NotificationEvent[] = ["leave_applied", "leave_decided", "regularisation_applied", "regularisation_decided", "login_code", "payslip_ready",
+  "application_received", "interview_panel", "interview_update", "recruit_regret", "offer_response"];
 
 export const DEFAULT_TEMPLATES: Record<NotificationEvent, MessageTemplate> = {
   onboarding_invite: {
@@ -315,5 +332,142 @@ Payroll, {{company}}`,
 — Payroll, {{company}}`,
     wa_template: "hrm_payslip_ready",
     wa_params: ["name", "month", "net_pay", "link"],
+  },
+  application_received: {
+    subject: "We have received your application — {{role}}, {{company}}",
+    email: `Dear {{name}},
+
+Thank you for applying for {{role}} at {{company}}. We have received your resume and our team will review it.
+
+If your profile matches the role, we will contact you on this e-mail or your mobile with the next steps.
+
+Talent team, {{company}}`,
+    whatsapp: `Dear {{name}}, thank you for applying for {{role}} at {{company}}. We have received your resume and will contact you if your profile matches.`,
+    wa_template: "hrm_application_received",
+    wa_params: ["name", "role", "company"],
+  },
+  interview_invite: {
+    subject: "Interview for {{role}} — {{when}} — {{company}}",
+    email: `Dear {{name}},
+
+Thank you for your interest in {{role}} at {{company}}. We are pleased to invite you for an interview.
+
+Round: {{round}}
+Date and time: {{when}} ({{duration}} minutes)
+Mode: {{mode}}
+{{where}}
+
+Please bring: {{bring}}
+
+Please confirm that you can attend, or ask for another time, using the button below.
+
+[[Confirm or reschedule|{{link}}]]
+
+We look forward to meeting you.
+
+Talent team, {{company}}`,
+    whatsapp: `Dear {{name}}, you are shortlisted for {{role}} at {{company}}. Interview: {{when}}, {{mode}}. {{where}}. Please bring: {{bring}}.
+
+[[Confirm or reschedule|{{link}}]]`,
+    wa_template: "hrm_interview_invite",
+    wa_params: ["name", "role", "company", "when", "mode", "where", "bring", "link"],
+  },
+  interview_panel: {
+    subject: "Interview panel: {{candidate}} for {{role}} — {{when}}",
+    email: `Dear {{name}},
+
+You are on the interview panel for {{candidate}} ({{role}}).
+
+Round: {{round}}
+Date and time: {{when}} ({{duration}} minutes)
+Mode: {{mode}}
+{{where}}
+
+The calendar invite is attached. After the interview, please fill in your scorecard in the HR portal.
+
+[[Open the interview|{{link}}]]
+
+HR, {{company}}`,
+    whatsapp: `You are on the interview panel for {{candidate}} ({{role}}) on {{when}}. Scorecard: {{link}}`,
+    wa_template: "hrm_interview_panel",
+    wa_params: ["candidate", "role", "when", "link"],
+  },
+  interview_reminder: {
+    subject: "Reminder: your interview {{day}} — {{company}}",
+    email: `Dear {{name}},
+
+This is a reminder of your interview for {{role}} at {{company}} {{day}}, {{when}}.
+
+Mode: {{mode}}
+{{where}}
+
+[[Confirm or reschedule|{{link}}]]
+
+Talent team, {{company}}`,
+    whatsapp: `Reminder: your interview for {{role}} at {{company}} is {{day}}, {{when}}. {{where}}
+
+[[Confirm or reschedule|{{link}}]]`,
+    wa_template: "hrm_interview_reminder",
+    wa_params: ["role", "company", "day", "when", "where", "link"],
+  },
+  interview_update: {
+    subject: "{{candidate}} {{update}} — interview for {{role}}",
+    email: `{{candidate}} {{update}} for the interview on {{when}} ({{role}}).
+
+{{note}}
+
+[[Open the candidate|{{link}}]]`,
+    whatsapp: `{{candidate}} {{update}} for the interview on {{when}} ({{role}}). {{note}}`,
+    wa_template: "hrm_interview_update",
+    wa_params: ["candidate", "update", "when", "role", "note"],
+  },
+  recruit_regret: {
+    subject: "Your application for {{role}} — {{company}}",
+    email: `Dear {{name}},
+
+Thank you for your interest in {{role}} at {{company}} and for the time you gave us.
+
+After careful consideration, we will not be taking your application further at this time. This was not an easy decision, and it is not a judgement of your abilities. We will keep your profile and may contact you about other suitable openings.
+
+We wish you every success.
+
+Talent team, {{company}}`,
+    whatsapp: `Dear {{name}}, thank you for applying for {{role}} at {{company}}. We will not be taking your application further this time, and we wish you every success.`,
+    wa_template: "hrm_recruit_regret",
+    wa_params: ["name", "role", "company"],
+  },
+  offer_letter: {
+    subject: "Offer of employment — {{role}}, {{company}}",
+    email: `Dear {{name}},
+
+Congratulations! We are pleased to offer you the position of {{role}} at {{company}}.
+
+Annual CTC: {{ctc}}
+Date of joining: {{doj}}
+This offer is valid until {{valid_until}}.
+
+Your offer letter is attached. Please read it and accept or decline using the button below. When you accept, you will receive a link to complete your joining formalities online.
+
+[[View and respond to the offer|{{link}}]]
+
+We look forward to welcoming you.
+
+HR, {{company}}`,
+    whatsapp: `Congratulations {{name}}! {{company}} offers you {{role}} with an annual CTC of {{ctc}}, joining on {{doj}}. Please accept or decline by {{valid_until}}.
+
+[[View and respond|{{link}}]]`,
+    wa_template: "hrm_offer_letter",
+    wa_params: ["name", "company", "role", "ctc", "doj", "valid_until", "link"],
+  },
+  offer_response: {
+    subject: "Offer {{response}}: {{candidate}} — {{role}}",
+    email: `{{candidate}} has {{response}} the offer for {{role}} ({{ctc}}).
+
+{{note}}
+
+[[Open the offer|{{link}}]]`,
+    whatsapp: `{{candidate}} has {{response}} the offer for {{role}}. {{note}}`,
+    wa_template: "hrm_offer_response",
+    wa_params: ["candidate", "response", "role", "note"],
   },
 };

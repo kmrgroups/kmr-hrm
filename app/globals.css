@@ -420,3 +420,22 @@ table.tight input, table.tight select { min-height: 32px; padding: 4px 6px; font
 .rrcols h3 { margin: 0 0 6px; font-size: 13px; }
 .rrcols ul, .rrcols ol { margin: 0; padding-left: 16px; }
 @media (max-width: 800px) { .rrcols { grid-template-columns: 1fr; } .rrcols > div { border-right: 0; border-bottom: 1px solid var(--border); } }
+
+/* ---------- phones: every screen fits the screen width ----------
+   Grid and flex children default to min-width:auto, so one wide table or tab strip used to stretch the whole page.
+   With min-width:0 they shrink to the screen and wide content scrolls inside its own box (.tablewrap, .tabs). */
+.shell > *, .main, .grid > *, .formgrid > *, .row > *, .spread > *, .pagehead > * { min-width: 0; }
+.main input, .main select, .main textarea { max-width: 100%; min-width: 0; }
+.main img, .main video, .main iframe, .main canvas { max-width: 100%; }
+.main h1, .main h2, .main p, .main td, .main dd { overflow-wrap: anywhere; }
+.main .card > table { width: 100%; }
+.tabs { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a, .tabs button { white-space: nowrap; flex: none; }
+@media (max-width: 640px) {
+  .pagehead { flex-wrap: wrap; gap: 10px; }
+  .toolbar input, .toolbar select { min-width: 0; width: 100%; }
+  .main .row { flex-wrap: wrap; }
+  .tablewrap table { font-size: 13px; }
+  .segmented { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+}

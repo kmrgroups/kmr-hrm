@@ -30,7 +30,7 @@ const shiftSchema = z.object({
 
 export async function saveShift(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const parsed = shiftSchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const { id, ...row } = parsed.data;
@@ -46,7 +46,7 @@ export async function saveShift(_: ActionState, form: FormData): Promise<ActionS
 }
 
 export async function toggleShift(form: FormData) {
-  const { tenant } = await assertRole(HR_ROLES);
+  const { tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
   const supabase = await createClient();
   await supabase.from("shifts").update({ active: form.get("active") === "1" }).eq("id", String(form.get("id"))).eq("tenant_id", tenant.id);
   revalidatePath(PATH);
@@ -60,7 +60,7 @@ const holidaySchema = z.object({
 
 export async function addHoliday(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const parsed = holidaySchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const supabase = await createClient();
@@ -74,7 +74,7 @@ export async function addHoliday(_: ActionState, form: FormData): Promise<Action
 }
 
 export async function deleteHoliday(form: FormData) {
-  const { user, tenant } = await assertRole(HR_ROLES);
+  const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
   const supabase = await createClient();
   const { data } = await supabase.from("holidays").delete().eq("id", String(form.get("id"))).eq("tenant_id", tenant.id).select("holiday_date,name");
   if (data?.[0]) {
@@ -87,7 +87,7 @@ export async function deleteHoliday(form: FormData) {
 /** Copies last year's holiday list to next year with the same day and month (HR then fixes moving festivals) */
 export async function copyHolidays(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const year = Number(form.get("year"));
     if (!(year > 2000 && year < 2100)) return { error: "Choose a year." };
     const supabase = await createClient();
@@ -111,7 +111,7 @@ const deviceSchema = z.object({
 
 export async function addDevice(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const parsed = deviceSchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
@@ -129,7 +129,7 @@ export async function addDevice(_: ActionState, form: FormData): Promise<ActionS
 }
 
 export async function toggleDevice(form: FormData) {
-  const { user, tenant } = await assertRole(HR_ROLES);
+  const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
   const supabase = await createClient();
   const active = form.get("active") === "1";
   await supabase.from("attendance_devices").update({ active }).eq("id", String(form.get("id"))).eq("tenant_id", tenant.id);
@@ -139,7 +139,7 @@ export async function toggleDevice(form: FormData) {
 
 export async function saveAttendanceOptions(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const ot = Number(form.get("ot_min_minutes"));
     const reg = Number(form.get("employee_can_regularise_days"));
     if (!(ot >= 0 && ot <= 240)) return { error: "Minimum overtime must be between 0 and 240 minutes." };

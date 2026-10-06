@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getTenant } from "@/lib/tenant";
 import { licenceFor } from "@/lib/licence";
+import { FEATURE_NAME, hasFeature } from "@/lib/features";
 import type { AppUser, Role, Tenant } from "@/lib/types";
 
 export const HR_ROLES: Role[] = ["company_admin", "platform_admin", "hr_manager", "hr_executive"];
@@ -58,7 +59,7 @@ export async function requireRole(roles: Role[]): Promise<Session> {
 }
 
 /** For server actions / route handlers: throws instead of redirecting. */
-export async function assertRole(roles: Role[]): Promise<Session> {
+export async function assertRole(roles: Role[], feature?: string): Promise<Session> {
   const s = await getSession();
   if (!s) throw new Error("Please sign in again.");
   if (!hasRole(s.user, roles)) throw new Error("You do not have permission for this action.");
@@ -69,6 +70,7 @@ export async function assertRole(roles: Role[]): Promise<Session> {
   if (s.user.role !== "platform_admin") {
     const l = await licenceFor(s.tenant.id);
     if (!l.ok) throw new Error(`${l.message} Please contact KMR Group of Companies.`);
+    if (feature && !hasFeature(l.features, feature)) throw new Error(`${FEATURE_NAME[feature] || "This feature"} is not part of your company's HRM subscription. Please contact KMR Group of Companies — www.kmr-groups.com/contact.`);
   }
   return s;
 }

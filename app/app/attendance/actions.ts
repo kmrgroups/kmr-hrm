@@ -14,7 +14,7 @@ const fail = (e: unknown): ActionState => ({ error: (e as Error).message });
 /** CSV / TSV export from the biometric software */
 export async function importPunches(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const file = form.get("file");
     if (!(file instanceof File) || !file.size) return { error: "Choose the file exported from the biometric software." };
     if (file.size > 5 * 1024 * 1024) return { error: "The file is larger than 5 MB. Please export a shorter date range." };
@@ -33,7 +33,7 @@ export async function importPunches(_: ActionState, form: FormData): Promise<Act
 /** Re-runs the attendance rules for a date range (after changing shifts, holidays or rules) */
 export async function recomputeRange(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const from = String(form.get("from") ?? ""), to = String(form.get("to") ?? from);
     if (!isDate(from) || !isDate(to) || to < from) return { error: "Choose a valid date range." };
     if (to > addDays(from, 62)) return { error: "Recalculate up to two months at a time." };
@@ -48,7 +48,7 @@ export async function recomputeRange(_: ActionState, form: FormData): Promise<Ac
 /** HR adds a missing punch by hand (e.g. device was down) */
 export async function addManualPunch(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const employeeId = String(form.get("employee_id") ?? "");
     const date = String(form.get("date") ?? "");
     const time = String(form.get("time") ?? "");
@@ -77,7 +77,7 @@ const settingsSchema = z.object({
 /** Device user ID, shift and weekly offs on the employee record */
 export async function saveEmployeeAttendance(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const parsed = settingsSchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const offs = form.getAll("weekly_offs").map(Number).filter((n) => n >= 0 && n <= 6);

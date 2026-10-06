@@ -30,7 +30,7 @@ async function runFor(month: string) {
 export async function startRun(_: ActionState, form: FormData): Promise<ActionState> {
   const month = String(form.get("month") ?? "");
   try {
-    const { user, tenant } = await assertRole(ROLES);
+    const { user, tenant } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     if (!isMonth(month)) return { error: "Choose a month." };
     const supabase = await createClient();
     let { data: run } = await supabase.from("payroll_runs").select("id,month,status").eq("month", month).maybeSingle();
@@ -47,7 +47,7 @@ export async function startRun(_: ActionState, form: FormData): Promise<ActionSt
 
 export async function recalcRun(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(ROLES);
+    const { tenant } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const { supabase, run } = await runFor(String(form.get("month")));
     if (run.status !== "draft") return { error: "This month is finalised. Reopen it first to make changes." };
     const r = await computeRun(supabase, tenant.id, run);
@@ -58,7 +58,7 @@ export async function recalcRun(_: ActionState, form: FormData): Promise<ActionS
 
 export async function saveLine(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const { supabase, run } = await runFor(String(form.get("month")));
     if (run.status !== "draft") return { error: "This month is finalised. Reopen it first to make changes." };
     const emp = String(form.get("employee_id") ?? "");
@@ -86,7 +86,7 @@ export async function saveLine(_: ActionState, form: FormData): Promise<ActionSt
 export async function finalise(_: ActionState, form: FormData): Promise<ActionState> {
   const month = String(form.get("month"));
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const { supabase, run } = await runFor(month);
     if (run.status !== "draft") return { error: "Already finalised." };
     await computeRun(supabase, tenant.id, run);
@@ -100,7 +100,7 @@ export async function finalise(_: ActionState, form: FormData): Promise<ActionSt
 export async function reopen(_: ActionState, form: FormData): Promise<ActionState> {
   const month = String(form.get("month"));
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const { supabase, run } = await runFor(month);
     const { data: later } = await supabase.from("payroll_runs").select("month").eq("status", "finalised").gt("month", month).limit(1);
     if (later?.length) return { error: `Reopen ${fmtMonth(later[0].month)} first — only the latest finalised month can be reopened.` };
@@ -114,7 +114,7 @@ export async function reopen(_: ActionState, form: FormData): Promise<ActionStat
 export async function deleteRun(_: ActionState, form: FormData): Promise<ActionState> {
   const month = String(form.get("month"));
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const { supabase, run } = await runFor(month);
     if (run.status !== "draft") return { error: "Reopen the month first." };
     const { error } = await supabase.from("payroll_runs").delete().eq("id", run.id);
@@ -128,7 +128,7 @@ export async function deleteRun(_: ActionState, form: FormData): Promise<ActionS
 /** Emails each employee their payslip (PDF) from the company's own mailbox. */
 export async function emailPayslips(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const { supabase, run } = await runFor(String(form.get("month")));
     if (run.status !== "finalised") return { error: "Finalise the month first." };
     const { data: lines } = await supabase.from("payroll_lines").select("*").eq("run_id", run.id);
@@ -158,7 +158,7 @@ export async function emailPayslips(_: ActionState, form: FormData): Promise<Act
 // ------------------------------------------------------------------ salaries
 export async function saveSalary(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const supabase = await createClient();
     const emp = String(form.get("employee_id") ?? ""), from = String(form.get("effective_from") ?? "");
     const gross = num(form.get("monthly_gross"));
@@ -196,7 +196,7 @@ export async function saveSalary(_: ActionState, form: FormData): Promise<Action
 
 export async function deleteSalary(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const supabase = await createClient();
     const { error } = await supabase.from("salary_structures").delete().eq("id", String(form.get("id")));
     if (error) return { error: error.message };
@@ -209,7 +209,7 @@ export async function deleteSalary(_: ActionState, form: FormData): Promise<Acti
 /** CSV with columns: employee_code, monthly_gross, effective_from (YYYY-MM-DD). */
 export async function importSalaries(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const f = form.get("file");
     if (!(f instanceof File) || !f.size) return { error: "Choose the CSV file." };
     const supabase = await createClient();
@@ -238,7 +238,7 @@ export async function importSalaries(_: ActionState, form: FormData): Promise<Ac
 // ------------------------------------------------------------------ loans
 export async function saveLoan(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const amount = num(form.get("amount")), emi = num(form.get("emi")), start = String(form.get("start_month") ?? ""), emp = String(form.get("employee_id") ?? "");
     if (!emp) return { error: "Choose the employee." };
     if (!(amount > 0) || !(emi > 0) || emi > amount) return { error: "Enter the amount and a monthly instalment not more than the amount." };
@@ -256,7 +256,7 @@ export async function saveLoan(_: ActionState, form: FormData): Promise<ActionSt
 
 export async function closeLoan(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(ROLES);
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
     const supabase = await createClient();
     const { error } = await supabase.from("loans").update({ status: "closed" }).eq("id", String(form.get("id")));
     if (error) return { error: error.message };
@@ -269,7 +269,7 @@ export async function closeLoan(_: ActionState, form: FormData): Promise<ActionS
 // ------------------------------------------------------------------ settings
 export async function savePaySettings(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(["hr_manager"]);
+    const { tenant, user } = await assertRole(["hr_manager"], "hrm.payroll-statutory-reports");
     const supabase = await createClient();
     const b = (k: string) => form.get(k) === "on";
     const n = (k: string, min: number, max: number) => { const v = num(form.get(k)); if (!(v >= min && v <= max)) throw new Error(`Check the value of “${k.replace(/_/g, " ")}”.`); return v; };
@@ -298,7 +298,7 @@ export async function savePaySettings(_: ActionState, form: FormData): Promise<A
 
 export async function saveComponent(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(["hr_manager"]);
+    const { tenant, user } = await assertRole(["hr_manager"], "hrm.payroll-statutory-reports");
     const supabase = await createClient();
     const code = String(form.get("code") ?? "").trim().toUpperCase(), name = String(form.get("name") ?? "").trim();
     const calc = String(form.get("calc") ?? "fixed");

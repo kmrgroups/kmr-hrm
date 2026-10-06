@@ -26,7 +26,7 @@ const typeSchema = z.object({
 
 export async function saveLeaveType(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const parsed = typeSchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const { id, ...row } = parsed.data;
@@ -43,7 +43,7 @@ export async function saveLeaveType(_: ActionState, form: FormData): Promise<Act
 }
 
 export async function toggleLeaveType(form: FormData) {
-  const { tenant } = await assertRole(HR_ROLES);
+  const { tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
   const supabase = await createClient();
   await supabase.from("leave_types").update({ active: form.get("active") === "1" }).eq("id", String(form.get("id"))).eq("tenant_id", tenant.id);
   revalidatePath(PATH);
@@ -51,7 +51,7 @@ export async function toggleLeaveType(form: FormData) {
 
 export async function saveLeaveYear(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const m = Number(form.get("leave_year_start_month"));
     if (!(m >= 1 && m <= 12)) return { error: "Choose a month." };
     const db = createAdminClient();

@@ -27,7 +27,7 @@ function refresh() { for (const p of ["/app/qms/ai", "/app/qms", "/app/qms/needs
 // ------------------------------------------------------------------ settings and connection check
 export async function setAiEnabled(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(["hr_manager"]);
+    const s = await assertRole(["hr_manager"], "hrm.skill-matrix-training-safety");
     const on = f.get("on") === "1";
     const db = await createClient();
     const { error } = await db.from("qms_settings").upsert({ tenant_id: s.tenant.id, ai_enabled: on }, { onConflict: "tenant_id" });
@@ -41,7 +41,7 @@ export async function setAiEnabled(_: ActionState, f: FormData): Promise<ActionS
 export async function checkAi(_: ActionState, f: FormData): Promise<ActionState> {
   void f;
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     if (!aiConfigured()) return { error: NOT_SET };
     const r = await askAi({ prompt: 'Reply with this JSON only: {"ok": true, "say": "ready"}', json: true, maxTokens: 50, budgetMs: 30000 });
     const j = r.ok ? extractJson<{ ok?: boolean }>(r.text!) : null;
@@ -57,7 +57,7 @@ export async function checkAi(_: ActionState, f: FormData): Promise<ActionState>
 export async function runQmsAgent(_: ActionState, f: FormData): Promise<ActionState> {
   void f;
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const db = await createClient();
     const h = await loadHealth(db, true, istToday());
     const ai = await aiOn(db, s.tenant.id);
@@ -76,7 +76,7 @@ export async function runQmsAgent(_: ActionState, f: FormData): Promise<ActionSt
 export async function proposeProgramsForNeeds(_: ActionState, f: FormData): Promise<ActionState> {
   void f;
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const db = await createClient();
     if (!(await aiOn(db, s.tenant.id))) return { error: aiConfigured() ? "AI drafting is switched off (QMS › AI)." : NOT_SET };
     const { data: needs } = await db.from("training_needs").select("id,topic,reason,competency_id,employee:employees(email)").eq("status", "open").is("program_id", null).limit(500);
@@ -111,7 +111,7 @@ export async function proposeProgramsForNeeds(_: ActionState, f: FormData): Prom
 
 export async function acceptProgram(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Unknown programme." };
     const db = await createClient();
     const { data: p } = await db.from("training_programs").select("id,title,ai_topics,reviewed_at").eq("id", id).single();
@@ -135,7 +135,7 @@ export async function acceptProgram(_: ActionState, f: FormData): Promise<Action
 
 export async function rejectProgram(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Unknown programme." };
     const db = await createClient();
     const { data: p } = await db.from("training_programs").select("title,ai_proposed,reviewed_at").eq("id", id).single();
@@ -151,7 +151,7 @@ export async function rejectProgram(_: ActionState, f: FormData): Promise<Action
 // ------------------------------------------------------------------ pre / post test questions
 export async function writeProgramQuiz(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Unknown programme." };
     const db = await createClient();
     if (!(await aiOn(db, s.tenant.id))) return { error: aiConfigured() ? "AI drafting is switched off (QMS › AI)." : NOT_SET };
@@ -169,7 +169,7 @@ export async function writeProgramQuiz(_: ActionState, f: FormData): Promise<Act
 
 export async function decideQuiz(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), accept = f.get("accept") === "1";
     if (!id) return { error: "Unknown programme." };
     const db = await createClient();
@@ -184,7 +184,7 @@ export async function decideQuiz(_: ActionState, f: FormData): Promise<ActionSta
 /** HR corrects a question's right answer (or removes a question) before accepting */
 export async function editQuizItem(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    await assertRole(HR);
+    await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), i = Number(f.get("i")), what = String(f.get("what") ?? "");
     if (!id || !Number.isInteger(i)) return { error: "Unknown question." };
     const db = await createClient();

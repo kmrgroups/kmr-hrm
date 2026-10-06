@@ -16,7 +16,7 @@ const fail = (e: unknown): ActionState => ({ error: (e as Error).message });
 
 export async function runCredits(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const year = Number(form.get("year"));
     const n = await applyCredits(tenant.id, year, istToday(), user.id);
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "leave.credits_applied", entity: "leave_ledger", data: { year, entries: n } });
@@ -27,7 +27,7 @@ export async function runCredits(_: ActionState, form: FormData): Promise<Action
 
 export async function closeYear(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(["hr_manager"]);
+    const { user, tenant } = await assertRole(["hr_manager"], "hrm.attendance-shifts-leave");
     const year = Number(form.get("year"));
     if (year >= leaveYearOf(istToday(), startMonthOf(tenant))) return { error: "Only a finished leave year can be closed." };
     const r = await closeLeaveYear(tenant.id, year, user.id);
@@ -48,7 +48,7 @@ const adjustSchema = z.object({
 /** Opening balance (when moving from another system), comp-off grant or correction */
 export async function adjustBalance(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const parsed = adjustSchema.safeParse(Object.fromEntries(form));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
@@ -72,7 +72,7 @@ export async function adjustBalance(_: ActionState, form: FormData): Promise<Act
  */
 export async function importOpeningBalances(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const file = form.get("file");
     if (!(file instanceof File) || !file.size) return { error: "Choose a CSV file." };
     const year = Number(form.get("year"));
@@ -114,7 +114,7 @@ export async function importOpeningBalances(_: ActionState, form: FormData): Pro
 /** HR records leave for someone (e.g. workmen without portal access, or after the fact). Approved straight away. */
 export async function recordLeave(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR_ROLES);
+    const { user, tenant } = await assertRole(HR_ROLES, "hrm.attendance-shifts-leave");
     const input = {
       employeeId: String(form.get("employee_id") ?? ""), leaveTypeId: String(form.get("leave_type_id") ?? ""),
       from: String(form.get("from_date") ?? ""), to: String(form.get("to_date") || form.get("from_date") || ""),

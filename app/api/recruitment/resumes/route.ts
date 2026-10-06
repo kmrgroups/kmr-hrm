@@ -10,7 +10,7 @@ export const maxDuration = 60;
 /** HR uploads one resume for a requisition (the browser sends many, one after another). */
 export async function POST(req: Request) {
   let session;
-  try { session = await assertRole(HR_ROLES); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }); }
+  try { session = await assertRole(HR_ROLES, "hrm.recruitment-onboarding"); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }); }
   const form = await req.formData().catch(() => null);
   const file = form?.get("file"), reqId = String(form?.get("requisition_id") ?? "");
   if (!(file instanceof File) || !/^[0-9a-f-]{36}$/.test(reqId)) return NextResponse.json({ error: "Choose a file." }, { status: 400 });

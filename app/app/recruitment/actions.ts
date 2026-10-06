@@ -77,7 +77,7 @@ const chosenCompetencies = (f: FormData) => f.getAll("competency").map((x) => St
 export async function createRequisition(_: ActionState, form: FormData): Promise<ActionState> {
   let id = "";
   try {
-    const { user, tenant } = await assertRole(RAISE);
+    const { user, tenant } = await assertRole(RAISE, "hrm.recruitment-onboarding");
     const r = reqFields(form);
     const position_id = await positionFor(tenant.id, user.id, r, form);
     const db = await createClient();
@@ -99,7 +99,7 @@ export async function createRequisition(_: ActionState, form: FormData): Promise
 
 export async function updateRequisition(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(RAISE);
+    const { user, tenant } = await assertRole(RAISE, "hrm.recruitment-onboarding");
     const id = uuid(form, "id"); if (!id) return { error: "Missing requisition." };
     const r = reqFields(form);
     const position_id = await positionFor(tenant.id, user.id, r, form);
@@ -116,7 +116,7 @@ export async function updateRequisition(_: ActionState, form: FormData): Promise
 
 export async function setRequisitionStatus(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id"), to = str(form, "to");
     const db = await createClient();
     const { data: r } = await db.from("requisitions").select("id,status,jd_id,ref_no").eq("id", id!).single();
@@ -143,7 +143,7 @@ export async function setRequisitionStatus(_: ActionState, form: FormData): Prom
 
 export async function setPublished(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id"), on = form.get("on") === "1";
     const db = await createClient();
     const { error } = await db.from("requisitions").update({ published: on }).eq("id", id!).eq("status", "open");
@@ -179,7 +179,7 @@ async function attachJd(db: Awaited<ReturnType<typeof createClient>>, tenantId: 
 
 export async function writeJd(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const reqId = uuid(form, "requisition_id"); if (!reqId) return { error: "Missing requisition." };
     const db = await createClient();
     const how = await attachJd(db, tenant.id, user.id, reqId, form.get("fresh") === "1", opt(form, "family", 30), [], user.full_name);
@@ -191,7 +191,7 @@ export async function writeJd(_: ActionState, form: FormData): Promise<ActionSta
 
 export async function saveJd(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id"), reqId = uuid(form, "requisition_id");
     const db = await createClient();
     const { data: cur } = await db.from("job_descriptions").select("*").eq("id", id!).single();
@@ -224,7 +224,7 @@ export async function saveJd(_: ActionState, form: FormData): Promise<ActionStat
 
 export async function approveJd(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id"), reqId = uuid(form, "requisition_id");
     const db = await createClient();
     const { data: jd } = await db.from("job_descriptions").select("id,designation_id,position_id,version").eq("id", id!).single();
@@ -252,7 +252,7 @@ export async function approveJd(_: ActionState, form: FormData): Promise<ActionS
 export async function addCandidate(_: ActionState, form: FormData): Promise<ActionState> {
   let appId = "";
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const reqId = uuid(form, "requisition_id"); if (!reqId) return { error: "Missing requisition." };
     const db = await createClient();
     const email = str(form, "email", 120).toLowerCase() || null, phoneRaw = str(form, "phone", 20);
@@ -290,7 +290,7 @@ export async function addCandidate(_: ActionState, form: FormData): Promise<Acti
 
 export async function updateCandidate(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const candId = uuid(form, "candidate_id"), appId = uuid(form, "application_id");
     const db = await createClient();
     const email = str(form, "email", 120).toLowerCase() || null, phoneRaw = str(form, "phone", 20);
@@ -312,7 +312,7 @@ export async function updateCandidate(_: ActionState, form: FormData): Promise<A
 
 export async function decide(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const appId = uuid(form, "application_id"), d = str(form, "decision"), reason = opt(form, "reason", 500);
     const db = await createClient();
     const { data: a } = await db.from("applications").select("id,status,recommendation,requisition_id").eq("id", appId!).single();
@@ -335,7 +335,7 @@ export async function decide(_: ActionState, form: FormData): Promise<ActionStat
 
 export async function rescoreAll(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    await assertRole(HR);
+    await assertRole(HR, "hrm.recruitment-onboarding");
     const reqId = uuid(form, "requisition_id");
     const n = await rescoreRequisition(await createClient(), reqId!);
     revalidatePath(`/app/recruitment/requisitions/${reqId}`);
@@ -346,7 +346,7 @@ export async function rescoreAll(_: ActionState, form: FormData): Promise<Action
 // ================================================================== interviews
 export async function scheduleInterview(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const appId = uuid(form, "application_id");
     const db = await createClient();
     const { data: a } = await db.from("applications").select("id,status,requisition:requisitions(title),candidate:candidates(full_name,email,phone)").eq("id", appId!).single();
@@ -398,7 +398,7 @@ export async function scheduleInterview(_: ActionState, form: FormData): Promise
 
 export async function setInterviewStatus(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id"), to = str(form, "to");
     if (!["done", "no_show", "cancelled", "scheduled"].includes(to)) return { error: "Unknown step." };
     const db = await createClient();
@@ -412,7 +412,7 @@ export async function setInterviewStatus(_: ActionState, form: FormData): Promis
 
 export async function saveFeedback(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole([...HR_ROLES, "manager", "interviewer"]);
+    const { user, tenant } = await assertRole([...HR_ROLES, "manager", "interviewer"], "hrm.recruitment-onboarding");
     const id = uuid(form, "interview_id");
     const db = await createClient();
     const { data: iv } = await db.from("interviews").select("id,panel,application_id").eq("id", id!).single();
@@ -434,7 +434,7 @@ export async function saveFeedback(_: ActionState, form: FormData): Promise<Acti
 // ================================================================== offers
 export async function saveOffer(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const appId = uuid(form, "application_id");
     const db = await createClient();
     const { data: a } = await db.from("applications").select("id,status,requisition:requisitions(designation_id,department_id,plant_id)").eq("id", appId!).single();
@@ -471,7 +471,7 @@ export async function saveOffer(_: ActionState, form: FormData): Promise<ActionS
 
 export async function sendOffer(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id");
     const db = await createClient();
     const { data: o } = await db.from("offers").select("id,status,ref_no,annual_ctc,date_of_joining,valid_until,application_id").eq("id", id!).single();
@@ -502,7 +502,7 @@ export async function sendOffer(_: ActionState, form: FormData): Promise<ActionS
 
 export async function withdrawOffer(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(HR);
+    const { user, tenant } = await assertRole(HR, "hrm.recruitment-onboarding");
     const id = uuid(form, "id");
     const db = await createClient();
     const { data: o, error } = await db.from("offers").update({ status: "withdrawn", token_hash: null }).eq("id", id!).in("status", ["draft", "sent"]).select("application_id").single();
@@ -517,7 +517,7 @@ export async function withdrawOffer(_: ActionState, form: FormData): Promise<Act
 // ================================================================== settings
 export async function saveRecruitSettings(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const { user, tenant } = await assertRole(["hr_manager"]);
+    const { user, tenant } = await assertRole(["hr_manager"], "hrm.recruitment-onboarding");
     const n = (k: string, lo: number, hi: number, d: number) => { const v = Number(str(form, k, 5)); return Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v) : d; };
     const row = { tenant_id: tenant.id, careers_enabled: form.get("careers_enabled") === "on", careers_intro: opt(form, "careers_intro", 2000), req_approval: form.get("req_approval") === "on",
       suitable_score: n("suitable_score", 1, 100, 70), hold_score: n("hold_score", 0, 99, 50), regret_auto: form.get("regret_auto") === "on", regret_delay_days: n("regret_delay_days", 0, 30, 3),

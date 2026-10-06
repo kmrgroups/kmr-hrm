@@ -41,7 +41,7 @@ function whenOf(f: FormData): string | null {
 export async function reportIncident(_: ActionState, f: FormData): Promise<ActionState> {
   let id = "";
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const kind = str(f, "kind", 30), description = str(f, "description", 3000);
     if (!(kind in KINDS)) return { error: "Choose what happened." };
     if (description.length < 5) return { error: "Describe what happened." };
@@ -62,7 +62,7 @@ export async function reportIncident(_: ActionState, f: FormData): Promise<Actio
 
 export async function saveInvestigation(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Not found." };
     const db = await createClient();
     const { data: cur } = await db.from("incidents").select("status,kind").eq("id", id).single();
@@ -87,7 +87,7 @@ export async function saveInvestigation(_: ActionState, f: FormData): Promise<Ac
 
 export async function aiWhyWhy(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Not found." };
     const db = await createClient();
     const { data: inc } = await db.from("incidents").select("ref,kind,area,description,immediate_action,injury_nature,status").eq("id", id).single();
@@ -103,7 +103,7 @@ export async function aiWhyWhy(_: ActionState, f: FormData): Promise<ActionState
 
 export async function addAction(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const iid = uuid(f, "incident_id"); if (!iid) return { error: "Not found." };
     const db = await createClient();
     const { data: inc } = await db.from("incidents").select("id,ref,kind,area,status,sample,ai_actions").eq("id", iid).single();
@@ -136,7 +136,7 @@ export async function addAction(_: ActionState, f: FormData): Promise<ActionStat
 
 export async function actionDone(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Not found." };
     const reopen = f.get("reopen") === "1";
     const on = str(f, "done_on", 10) || istToday();
@@ -151,7 +151,7 @@ export async function actionDone(_: ActionState, f: FormData): Promise<ActionSta
 
 export async function closeIncident(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"); if (!id) return { error: "Not found." };
     const db = await createClient();
     const { data: inc } = await db.from("incidents").select("id,ref,kind,root_cause,status").eq("id", id).single();
@@ -171,7 +171,7 @@ export async function closeIncident(_: ActionState, f: FormData): Promise<Action
 
 export async function saveSafetySettings(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const email = opt(f, "officer_email", 200);
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "E-mail is not valid." };
     const hours = Number(str(f, "hours_per_day", 5)) || 8, target = str(f, "ltifr_target", 10);
@@ -186,7 +186,7 @@ export async function saveSafetySettings(_: ActionState, f: FormData): Promise<A
 // ================================================================== PPE
 export async function savePpeItem(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), name = str(f, "name", 80);
     if (name.length < 2) return { error: "Name the PPE." };
     const life = Number(str(f, "life_months", 3));
@@ -201,7 +201,7 @@ export async function savePpeItem(_: ActionState, f: FormData): Promise<ActionSt
 
 export async function issuePpe(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(TEAM);
+    const s = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const emps = f.getAll("employee_id").map(String).filter(isId), item = uuid(f, "item_id"), on = str(f, "issued_on", 10) || istToday();
     if (!emps.length) return { error: "Choose the person (or people)." };
     if (!item) return { error: "Choose the PPE." };
@@ -221,7 +221,7 @@ export async function issuePpe(_: ActionState, f: FormData): Promise<ActionState
 // ================================================================== medical examination dates
 export async function saveMedical(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await assertRole(HR);
+    const s = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const emp = uuid(f, "employee_id"); if (!emp) return { error: "Choose the person." };
     const doneOn = opt(f, "done_on", 10), next = opt(f, "next_due", 10);
     if (doneOn && (!isDate(doneOn) || doneOn > istToday())) return { error: "Done on: a date, not in the future." };

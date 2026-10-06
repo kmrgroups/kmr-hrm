@@ -1,6 +1,8 @@
 import { deviceBySerial, touchDevice } from "@/lib/attendance/devices";
 import { parseAdmsAttlog } from "@/lib/attendance/parse";
 import { ingestPunches } from "@/lib/attendance/service";
+import { licenceFor } from "@/lib/licence";
+import { hasFeature } from "@/lib/features";
 
 // "ADMS" push protocol used by eSSL / ZKTeco devices (Cloud Server Setting on the device).
 // Devices are recognised by their serial number, which HR registers under Settings → Attendance setup.
@@ -28,6 +30,9 @@ export async function POST(req: Request) {
     await touchDevice(device.id, req);
     return text("OK");            // user lists, photos and operation logs are not needed
   }
+  // attendance is an optional feature: without it the device keeps its logs (and retries) until the company adds it
+  const lic = await licenceFor(device.tenant_id);
+  if (!hasFeature(lic.features, "hrm.attendance-shifts-leave")) return text("ERROR: attendance not in plan", 403);
   const rows = parseAdmsAttlog(body);
   try {
     await ingestPunches(device.tenant_id, rows, "device", device.id);

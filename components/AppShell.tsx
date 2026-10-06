@@ -7,6 +7,8 @@ import { Icon, type IconName } from "./Icon";
 import { Flash } from "./Flash";
 import { readFlash } from "@/lib/flash";
 import { p } from "@/lib/base-path";
+import { licenceFor } from "@/lib/licence";
+import { FEATURE_NAME, featureForPath, hasFeature } from "@/lib/features";
 
 interface NavItem { href: string; label: string; icon: IconName; show: boolean }
 
@@ -58,12 +60,15 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/help", label: "Help & support", icon: "inbox", show: true },
   ];
 
+  // features the company has not bought: marked in the menu, and the screen itself is replaced by a notice
+  const feats = user.role === "platform_admin" ? null : (await licenceFor(tenant.id)).features;
+  const lockedKey = (href: string) => { const k = featureForPath(href); return k && !hasFeature(feats, k) ? k : null; };
   const isActive = (href: string) => active === href;
   const logo = logoUrl(tenant);
   const render = (items: NavItem[]) =>
     items.filter((i) => i.show).map((i) => (
       <a key={i.href} href={p(i.href)} className={`nav${isActive(i.href) ? " active" : ""}`}>
-        <Icon name={i.icon} /> {i.label}
+        <Icon name={i.icon} /> {i.label}{lockedKey(i.href) ? <span title="Not in your plan" aria-label="Locked"> 🔒</span> : null}
       </a>
     ));
 
@@ -99,7 +104,13 @@ export async function AppShell({ session, active, children }: { session: Session
             <span><b>Sample data only.</b> You are exploring the HRM with a demo company — nothing here is saved for your company.</span>
             <a className="btn small" href="/it/?buy=hrm#pilot">Use my company&apos;s data — buy subscription</a>
           </div>
-        )}<Flash msg={await readFlash()} />{children}</main>
+        )}<Flash msg={await readFlash()} />{lockedKey(active) ? (
+          <div className="card" style={{ maxWidth: 560 }}>
+            <h2 style={{ marginTop: 0 }}>🔒 Not in your plan</h2>
+            <p><b>{FEATURE_NAME[lockedKey(active)!] || "This feature"}</b> is not part of your company&apos;s HRM subscription.</p>
+            <p>To add it, please contact KMR Group of Companies — <a href="https://www.kmr-groups.com/contact" target="_blank" rel="noopener noreferrer">www.kmr-groups.com/contact</a>.</p>
+          </div>
+        ) : children}</main>
     </div>
   );
 }

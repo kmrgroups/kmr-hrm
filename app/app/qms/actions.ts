@@ -40,7 +40,7 @@ const err = (e: { message: string } | null) => { if (e) throw new Error(e.messag
 // ------------------------------------------------------------------ settings
 export async function saveQmsSettings(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const min = int(f, "min_qualified"), eff = int(f, "eff_days"), nj = int(f, "new_joiner_days");
     if (!min || min < 1 || min > 20) return { error: "Qualified people per operation: 1 to 20." };
     if (![30, 60, 90].includes(eff ?? 0)) return { error: "Effectiveness check: after 30, 60 or 90 days." };
@@ -58,7 +58,7 @@ export async function saveQmsSettings(_: ActionState, f: FormData): Promise<Acti
 // ------------------------------------------------------------------ skill matrix and competency levels (grid)
 export async function saveLevels(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(TEAM);
+    const { tenant, user } = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const kind = str(f, "kind", 20);
     let changes: { row: string; col: string; level: number }[];
     try { changes = JSON.parse(str(f, "changes", 200000)); } catch { return { error: "Nothing to save." }; }
@@ -98,7 +98,7 @@ export async function saveLevels(_: ActionState, f: FormData): Promise<ActionSta
 
 export async function saveOperation(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), line = str(f, "line", 80), code = str(f, "code", 20).toUpperCase(), name = str(f, "name", 120);
     if (!line || !code || name.length < 2) return { error: "Line, operation code and name are needed." };
     const min = int(f, "min_qualified");
@@ -116,7 +116,7 @@ export async function saveOperation(_: ActionState, f: FormData): Promise<Action
 // ------------------------------------------------------------------ competency library and role requirements
 export async function saveCompetency(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), name = str(f, "name", 120), category = str(f, "category", 20);
     if (name.length < 2) return { error: "Name the competency." };
     if (!["technical", "quality", "safety", "behavioural", "management"].includes(category)) return { error: "Choose a category." };
@@ -133,7 +133,7 @@ export async function saveCompetency(_: ActionState, f: FormData): Promise<Actio
 export async function findTrainingNeeds(_: ActionState, f: FormData): Promise<ActionState> {
   void f;
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const db = await createClient();
     const today = istToday();
     const [emps, req, assessed, comps, ops, skills, progs, attended, open, st] = await Promise.all([
@@ -174,7 +174,7 @@ export async function findTrainingNeeds(_: ActionState, f: FormData): Promise<Ac
 
 export async function addNeed(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(TEAM);
+    const { tenant, user } = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const hr = hasRole(user, HR);
     const db = await createClient();
     let emps = ids(f, "employee_id");
@@ -211,7 +211,7 @@ export async function addNeed(_: ActionState, f: FormData): Promise<ActionState>
 
 export async function setNeedStatus(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), status = str(f, "status", 20);
     if (!id || !["open", "closed", "cancelled"].includes(status)) return { error: "Unknown change." };
     const db = await createClient();
@@ -228,7 +228,7 @@ export async function setNeedStatus(_: ActionState, f: FormData): Promise<Action
 export async function buildPlan(_: ActionState, f: FormData): Promise<ActionState> {
   void f;
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const db = await createClient();
     const month = istToday().slice(0, 7);
     const [needs, sess] = await Promise.all([
@@ -265,7 +265,7 @@ export async function buildPlan(_: ActionState, f: FormData): Promise<ActionStat
 // ------------------------------------------------------------------ programmes and sessions
 export async function saveProgram(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), title = str(f, "title", 160), category = str(f, "category", 20), method = str(f, "eval_method", 20);
     if (title.length < 2) return { error: "Name the training." };
     if (!["induction", "safety", "quality", "technical", "awareness", "core_tools", "behavioural", "ojt"].includes(category)) return { error: "Choose a category." };
@@ -285,7 +285,7 @@ export async function saveProgram(_: ActionState, f: FormData): Promise<ActionSt
 
 export async function saveSession(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), program = uuid(f, "program_id");
     if (!program) return { error: "Choose the training programme." };
     const date = opt(f, "date", 10), st = opt(f, "start", 5), en = opt(f, "end", 5);
@@ -318,7 +318,7 @@ export async function saveSession(_: ActionState, f: FormData): Promise<ActionSt
 
 export async function addAttendees(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const sid = uuid(f, "session_id");
     if (!sid) return { error: "Unknown session." };
     const db = await createClient();
@@ -342,7 +342,7 @@ export async function addAttendees(_: ActionState, f: FormData): Promise<ActionS
 
 export async function removeAttendee(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    await assertRole(HR);
+    await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id");
     if (!id) return { error: "Unknown person." };
     const db = await createClient();
@@ -365,7 +365,7 @@ async function sessionInfo(db: Awaited<ReturnType<typeof createClient>>, sid: st
 
 export async function sendInvites(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const sid = uuid(f, "session_id");
     if (!sid) return { error: "Unknown session." };
     const db = await createClient();
@@ -390,7 +390,7 @@ export async function sendInvites(_: ActionState, f: FormData): Promise<ActionSt
 
 export async function saveAttendance(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { user } = await assertRole(HR);
+    const { user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const sid = uuid(f, "session_id");
     if (!sid) return { error: "Unknown session." };
     const db = await createClient();
@@ -416,7 +416,7 @@ export async function saveAttendance(_: ActionState, f: FormData): Promise<Actio
 /** attendance by scanning the employee's ID card (its QR holds the card-verification link) or typing his code */
 export async function scanAttendance(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const sid = uuid(f, "session_id"), code = str(f, "code", 400);
     if (!sid || !code) return { error: "Scan the ID card or type the employee code." };
     const db = await createClient();
@@ -439,7 +439,7 @@ export async function scanAttendance(_: ActionState, f: FormData): Promise<Actio
 
 export async function completeSession(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const sid = uuid(f, "session_id");
     if (!sid) return { error: "Unknown session." };
     const db = await createClient();
@@ -476,7 +476,7 @@ export async function completeSession(_: ActionState, f: FormData): Promise<Acti
 
 export async function cancelSession(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const sid = uuid(f, "session_id");
     if (!sid) return { error: "Unknown session." };
     const db = await createClient();
@@ -493,7 +493,7 @@ export async function cancelSession(_: ActionState, f: FormData): Promise<Action
 // ------------------------------------------------------------------ effectiveness
 export async function evaluate(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(TEAM);
+    const { tenant, user } = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), result = str(f, "result", 20);
     if (!id) return { error: "Unknown evaluation." };
     if (!["effective", "partly", "not_effective"].includes(result)) return { error: "Was the training effective?" };
@@ -536,7 +536,7 @@ export async function evaluate(_: ActionState, f: FormData): Promise<ActionState
 // ------------------------------------------------------------------ on-the-job training
 export async function saveOjtTemplate(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), title = str(f, "title", 160);
     if (title.length < 2) return { error: "Name the checklist." };
     const items = lines(f, "items", 60, 300).map((l) => {
@@ -556,7 +556,7 @@ export async function saveOjtTemplate(_: ActionState, f: FormData): Promise<Acti
 
 export async function startOjt(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(TEAM);
+    const { tenant, user } = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const tpl = uuid(f, "template_id"), emp = uuid(f, "employee_id"), start = str(f, "started_on", 10) || istToday();
     if (!tpl || !emp) return { error: "Choose the checklist and the person." };
     if (!isDate(start)) return { error: "Choose the start date." };
@@ -571,7 +571,7 @@ export async function startOjt(_: ActionState, f: FormData): Promise<ActionState
 
 export async function saveOjtProgress(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(TEAM);
+    const { tenant, user } = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id");
     if (!id) return { error: "Unknown record." };
     const db = await createClient();
@@ -594,7 +594,7 @@ export async function saveOjtProgress(_: ActionState, f: FormData): Promise<Acti
 // ------------------------------------------------------------------ internal auditors
 export async function saveAuditor(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const id = uuid(f, "id"), emp = uuid(f, "employee_id"), kind = str(f, "kind", 20);
     if (!emp) return { error: "Choose the employee." };
     if (!["qms", "process", "product", "supplier"].includes(kind)) return { error: "Choose the kind of auditor." };
@@ -614,7 +614,7 @@ export async function saveAuditor(_: ActionState, f: FormData): Promise<ActionSt
 
 export async function addAudit(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant } = await assertRole(HR);
+    const { tenant } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const aid = uuid(f, "auditor_id"), date = str(f, "audit_date", 10), area = str(f, "area", 160);
     if (!aid || !isDate(date) || area.length < 2) return { error: "Auditor, date and area are needed." };
     const findings = int(f, "findings");
@@ -632,7 +632,7 @@ export async function addAudit(_: ActionState, f: FormData): Promise<ActionState
 export async function addPosition(_: ActionState, f: FormData): Promise<ActionState> {
   let id = "";
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const title = str(f, "title", 120), dept = uuid(f, "department_id");
     if (title.length < 2) return { error: "Give the position (e.g. Production Head)." };
     if (!dept) return { error: "Choose the department." };
@@ -657,7 +657,7 @@ export async function addPosition(_: ActionState, f: FormData): Promise<ActionSt
 /** R&R sheet: roles, responsibilities, authority, competency (with level) and KPIs (target, frequency, review method) */
 export async function savePositionSheet(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const pid = uuid(f, "position_id");
     if (!pid) return { error: "Unknown position." };
     const resp = lines(f, "responsibilities");
@@ -717,7 +717,7 @@ export async function savePositionSheet(_: ActionState, f: FormData): Promise<Ac
 
 export async function rewriteSheet(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const pid = uuid(f, "position_id");
     if (!pid) return { error: "Unknown position." };
     const r = await writeSheetFromJd((await createClient()) as never, tenant.id, pid, { tenantId: tenant.id, userId: user.id, userName: user.full_name });
@@ -729,7 +729,7 @@ export async function rewriteSheet(_: ActionState, f: FormData): Promise<ActionS
 
 export async function approveSheet(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const pid = uuid(f, "position_id");
     if (!pid) return { error: "Unknown position." };
     const db = await createClient();
@@ -750,7 +750,7 @@ export async function approveSheet(_: ActionState, f: FormData): Promise<ActionS
 
 export async function setEmployeePosition(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(HR);
+    const { tenant, user } = await assertRole(HR, "hrm.skill-matrix-training-safety");
     const pid = uuid(f, "position_id"), emps = ids(f, "employee_id");
     if (!pid || !emps.length) return { error: "Choose the people." };
     const db = await createClient();
@@ -763,7 +763,7 @@ export async function setEmployeePosition(_: ActionState, f: FormData): Promise<
 
 // ------------------------------------------------------------------ the employee's own sign-offs (My portal)
 async function me() {
-  const s = await assertRole(["employee", "manager", "hr_executive", "hr_manager", "payroll", "interviewer"]);
+  const s = await assertRole(["employee", "manager", "hr_executive", "hr_manager", "payroll", "interviewer"], "hrm.skill-matrix-training-safety");
   if (!s.user.employee_id) throw new Error("Your login is not linked to an employee record.");
   return s;
 }
@@ -804,7 +804,7 @@ export async function ackAwareness(_: ActionState, f: FormData): Promise<ActionS
 // ------------------------------------------------------------------ KPIs
 export async function saveKpiValues(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const { tenant, user } = await assertRole(TEAM);
+    const { tenant, user } = await assertRole(TEAM, "hrm.skill-matrix-training-safety");
     const month = str(f, "month", 7);
     if (!isMonth(month)) return { error: "Choose the month." };
     const db = await createClient();

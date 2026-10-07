@@ -1,0 +1,25 @@
+; Copy this file to bridge.ini and fill it in. Lines starting with ; are notes.
+
+[hrm]
+; the HRM address punches are sent to (leave as it is)
+url = https://www.kmr-groups.com/it/hrm/api/attendance/punches
+; how often to look for new punches
+interval_minutes = 5
+; the very first time, how many days back to send (later runs send only what is new)
+first_run_days = 35
+
+; one block per machine. The name is only a label (no spaces is easiest).
+[machine:Esbee_Fingerprint]
+ip = 192.168.2.136
+port = 4370
+; the machine's communication password (Comm Key). Usually 0 — leave 0 unless the machine asks for one.
+password = 0
+; the API key the HRM showed when you added this machine under Settings > Attendance setup > Connect a device
+api_key = PASTE-THE-KEY-HERE
+
+; Face machine — remove the leading ; on these lines once its details are known
+;[machine:Esbee_Face]
+;ip = 192.168.2.xxx
+;port = 4370
+;password = 0
+;api_key = PASTE-ITS-OWN-KEY-HERE

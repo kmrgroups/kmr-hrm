@@ -10,6 +10,7 @@ export interface FormState { ok?: string; error?: string }
 export async function changePassword(_: FormState, form: FormData): Promise<FormState> {
   const session = await getSession();
   if (!session) return { error: "Please sign in again." };
+  if (process.env.HRM_DEMO_EMAIL && session.user.email === process.env.HRM_DEMO_EMAIL.toLowerCase()) return { error: "This is the shared sample login — its password cannot be changed." };
   const pw = String(form.get("password") || "");
   const confirm = String(form.get("confirm") || "");
   if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) {

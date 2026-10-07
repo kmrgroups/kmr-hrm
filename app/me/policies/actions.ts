@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { assertUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { setFlash } from "@/lib/flash";
 import type { ActionState } from "@/app/app/employees/actions";
@@ -8,7 +8,7 @@ import type { ActionState } from "@/app/app/employees/actions";
 /** the employee confirms he has read the current revision of a policy */
 export async function acknowledgePolicy(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await requireSession();
+    const s = await assertUser();
     if (!s.user.employee_id) return { error: "This is for employees." };
     const vid = String(f.get("version_id") ?? "");
     if (!/^[0-9a-f-]{36}$/.test(vid)) return { error: "Not found." };

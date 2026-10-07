@@ -19,7 +19,7 @@ export async function importCompanyJson(_: ActionState, form: FormData): Promise
     let json: unknown;
     try { json = JSON.parse(await file.text()); } catch { return { error: "That file is not valid JSON." }; }
     await saveNightlyBackup(tenant.id, `${istToday()}`);      // safety copy of the current data first
-    const { data, error } = await createAdminClient().rpc("company_import", { p_tenant: tenant.id, p_data: json });
+    const { data, error } = await createAdminClient().rpc("company_import_safe", { p_tenant: tenant.id, p_data: json });
     if (error) return { error: error.message };
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "data.restored", entity: "tenants", entityId: tenant.id, data: { file: file.name, rows: data } });
     revalidatePath("/app", "layout");

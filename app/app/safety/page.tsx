@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { ActionForm } from "@/components/ActionForm";
 import { Empty } from "@/components/ui";
 import { fetchAll } from "@/lib/attendance/service";
-import { istToday, addDays } from "@/lib/attendance/time";
+import { istToday, addDays, istDate } from "@/lib/attendance/time";
 import { p } from "@/lib/base-path";
 import { KINDS, STATUS, daysSinceLti, ltifr, pyramid, severityRate, ppeFor, dueState, type PpeItem, type PpeIssue } from "@/lib/safety/rules";
 import { people } from "@/app/app/qms/data";
@@ -30,7 +30,7 @@ export default async function SafetyHome() {
     db.from("safety_settings").select("*").maybeSingle(),
     db.rpc("man_hours", { p_from: from, p_to: today }),
   ]);
-  const year = incs.filter((i) => i.occurred_at.slice(0, 10) >= from);
+  const year = incs.filter((i) => istDate(Date.parse(i.occurred_at)) >= from);
   const manHours = Number(mh ?? 0);
   const lti = year.filter((i) => i.kind === "lost_time"), daysLost = year.reduce((s, i) => s + (i.days_lost ?? 0), 0);
   const fr = ltifr(lti.length, manHours), sr = severityRate(daysLost, manHours), since = daysSinceLti(incs, today);

@@ -23,7 +23,7 @@ async function assertCanApprove(session: Session, employeeId: string) {
 
 export async function decideLeave(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const session = await assertRole([...HR_ROLES, "manager"]);
+    const session = await assertRole([...HR_ROLES, "manager"], "hrm.attendance-shifts-leave");
     const { user, tenant } = session;
     const id = String(form.get("id") ?? "");
     const decision = form.get("decision") === "approve" ? "approve" : "reject";
@@ -48,7 +48,7 @@ export async function decideLeave(_: ActionState, form: FormData): Promise<Actio
 
 export async function decideRegularisation(_: ActionState, form: FormData): Promise<ActionState> {
   try {
-    const session = await assertRole([...HR_ROLES, "manager"]);
+    const session = await assertRole([...HR_ROLES, "manager"], "hrm.attendance-shifts-leave");
     const { user, tenant } = session;
     const id = String(form.get("id") ?? "");
     const approve = form.get("decision") === "approve";

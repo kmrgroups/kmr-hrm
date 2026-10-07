@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   const { error } = await supabase.auth.verifyOtp({ type: "magiclink", token_hash: link.properties.hashed_token });
   if (error) return fail("Could not start the session.", 500);
 
-  const next = body.next && body.next.startsWith("/") && !body.next.startsWith("//") ? body.next : null;
+  const next = body.next && /^\/(app|me|account|help)(\/|$|\?)/.test(body.next) ? body.next : null;
   const home = homeFor(appUser as AppUser);
   const res = NextResponse.json({ redirect: appUser.must_change_password ? home : next || home });
   res.cookies.set(COMPANY_COOKIE, tenant.slug, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax", secure: true, httpOnly: true });

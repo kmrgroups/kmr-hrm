@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notify } from "@/lib/notify";
 import { fullName } from "@/components/ui";
-import { addDays, istToday } from "@/lib/attendance/time";
+import { addDays, istDate, istToday, weekday } from "@/lib/attendance/time";
 import { baseUrl } from "@/lib/engage/send";
 import type { Tenant } from "@/lib/types";
 import { KINDS, ppeFor, type PpeItem, type PpeIssue } from "./rules";
@@ -47,7 +47,7 @@ export async function notifyAction(tenant: Tenant, a: { id: string; action: stri
  * Sent at most once a week when nothing new has become due (a Monday summary), daily when something new is overdue.
  */
 export async function safetyDaily(db: SupabaseClient): Promise<{ digests: number }> {
-  const today = istToday(), monday = new Date(`${today}T00:00:00+05:30`).getDay() === 1;
+  const today = istToday(), monday = weekday(today) === 1;
   const { data: tenants } = await db.from("tenants").select("*").eq("active", true);
   let digests = 0;
   for (const tenant of (tenants ?? []) as Tenant[]) {
@@ -66,7 +66,7 @@ export async function safetyDaily(db: SupabaseClient): Promise<{ digests: number
     for (const e of realPeople) for (const x of ppeFor(e, (items ?? []) as PpeItem[], (issues ?? []) as PpeIssue[], today)) { if (x.state === "overdue") ppeOver++; if (x.state === "never") ppeNever++; }
     const lines = [
       ...lateActs.slice(0, 20).map((a) => `ACTION OVERDUE since ${dmy(a.due_on)}: ${a.action} (${(a.incident as unknown as { ref: string }).ref}${a.owner_name ? `, ${a.owner_name}` : ""})`),
-      ...(fresh ?? []).map((f) => `NOT LOOKED AT: ${f.ref} ${KINDS[f.kind]} at ${f.area ?? "—"}, reported ${dmy(f.occurred_at.slice(0, 10))}`),
+      ...(fresh ?? []).map((f) => `NOT LOOKED AT: ${f.ref} ${KINDS[f.kind]} at ${f.area ?? "—"}, reported ${dmy(istDate(Date.parse(f.occurred_at)))}`),
       ...(ppeOver ? [`PPE overdue for replacement: ${ppeOver}`] : []), ...(ppeNever ? [`PPE never issued (people who need it): ${ppeNever}`] : []),
       ...((med?.length ?? 0) ? [`Medical examinations due within 30 days or overdue: ${med!.length}`] : []),
     ];

@@ -44,3 +44,12 @@ describe("PPE and medical due dates", () => {
     expect(addMonthsIso("2026-10-01", 12)).toBe("2027-10-01");
   });
 });
+
+import { daysSinceLti as _dsl } from "@/lib/safety/rules";
+import { describe as _d, it as _it, expect as _ex } from "vitest";
+_d("IST day boundaries (audit fix)", () => {
+  _it("an injury at 01:00 IST counts on its India date, not the UTC date", () => {
+    // 01:00 IST on 7 Oct is 19:30 UTC on 6 Oct
+    _ex(_dsl([{ kind: "lost_time", occurred_at: "2026-10-06T19:30:00+00:00" }], "2026-10-08")).toBe(1);
+  });
+});

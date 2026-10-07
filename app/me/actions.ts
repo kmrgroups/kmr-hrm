@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getSession } from "@/lib/auth";
+import { assertUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { currentOrigin } from "@/lib/tenant";
@@ -12,8 +12,7 @@ import { fmtDate, fullName } from "@/components/ui";
 import type { ActionState } from "@/app/app/employees/actions";
 
 async function me() {
-  const s = await getSession();
-  if (!s) throw new Error("Please sign in again.");
+  const s = await assertUser("hrm.attendance-shifts-leave");
   if (!s.user.employee_id) throw new Error("Your login is not linked to an employee record. Please contact HR.");
   return { ...s, employeeId: s.user.employee_id };
 }

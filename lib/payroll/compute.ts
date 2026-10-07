@@ -88,7 +88,9 @@ export function basisDays(s: PaySettings, daysInMonth: number) {
   return s.pay_basis === "fixed_26" ? 26 : s.pay_basis === "fixed_30" ? 30 : daysInMonth;
 }
 
-export function computeLine(inp: LineInput, s: PaySettings): LineResult {
+export function computeLine(inp0: LineInput, s: PaySettings): LineResult {
+  const fin = (n: number) => (Number.isFinite(n) ? n : 0);
+  const inp: LineInput = { ...inp0, lopDays: fin(inp0.lopDays), notEmployedDays: fin(inp0.notEmployedDays) };
   const warnings: string[] = [];
   const flags = new Map(inp.components.map((c) => [c.code, c]));
   const denom = basisDays(s, inp.daysInMonth);

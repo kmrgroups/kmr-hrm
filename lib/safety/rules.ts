@@ -1,3 +1,4 @@
+import { istDate } from "@/lib/attendance/time";
 // Safety arithmetic — incident figures (IS 3786 style, per million man-hours), PPE and medical due dates. Pure, tested.
 
 export const KINDS: Record<string, string> = {
@@ -25,7 +26,7 @@ export const severityRate = (daysLost: number, manHours: number) => (manHours > 
 
 /** days since the last lost-time injury (null when there has been none on record) */
 export function daysSinceLti(incidents: { kind: string; occurred_at: string }[], today: string): number | null {
-  const lti = incidents.filter((i) => i.kind === "lost_time").map((i) => i.occurred_at.slice(0, 10)).sort().pop();
+  const lti = incidents.filter((i) => i.kind === "lost_time").map((i) => istDate(Date.parse(i.occurred_at))).sort().pop();
   return lti ? daysBetween(lti, today) : null;
 }
 

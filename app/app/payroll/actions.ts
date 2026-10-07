@@ -163,6 +163,7 @@ export async function saveSalary(_: ActionState, form: FormData): Promise<Action
     const emp = String(form.get("employee_id") ?? ""), from = String(form.get("effective_from") ?? "");
     const gross = num(form.get("monthly_gross"));
     if (!emp) return { error: "Choose the employee." };
+    { const { data: own } = await supabase.from("employees").select("id").eq("id", emp).eq("tenant_id", tenant.id).maybeSingle(); if (!own) return { error: "Employee not found." }; }
     if (!isDate(from)) return { error: "Enter the date the salary starts." };
     if (!(gross >= 1000 && gross <= 10_000_000)) return { error: "Enter the monthly gross salary (Rs. per month)." };
     const { components } = await loadSetup(supabase, tenant.id);
@@ -245,6 +246,7 @@ export async function saveLoan(_: ActionState, form: FormData): Promise<ActionSt
     if (!isMonth(start)) return { error: "Choose the first month of recovery." };
     const supabase = await createClient();
     const kind = form.get("kind") === "advance" ? "advance" : "loan";
+    { const { data: own } = await supabase.from("employees").select("id").eq("id", emp).eq("tenant_id", tenant.id).maybeSingle(); if (!own) return { error: "Employee not found." }; }
     const { error } = await supabase.from("loans").insert({ tenant_id: tenant.id, employee_id: emp, kind, amount, emi, start_month: start, balance: amount,
       notes: String(form.get("notes") ?? "").trim().slice(0, 200) || null, created_by: user.id });
     if (error) return { error: error.message };

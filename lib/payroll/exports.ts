@@ -23,18 +23,18 @@ export function registerCsv(lines: Line[]) {
 /** Bank transfer list: name, account, IFSC, amount — the columns every bank's bulk-payment upload asks for. */
 export function bankCsv(lines: Line[], month: string) {
   const rows: unknown[][] = [["Beneficiary name", "Account number", "IFSC", "Amount", "Narration", "Employee code", "Email"]];
-  for (const l of lines.filter((l) => Number(l.net_pay) > 0)) rows.push([l.info.holder || l.info.name, l.info.account ? `'${l.info.account}` : "MISSING", l.info.ifsc ?? "MISSING", Number(l.net_pay).toFixed(2), `Salary ${month}`, l.info.code, l.info.email]);
+  for (const l of lines.filter((l) => Number(l.net_pay) > 0)) rows.push([l.info.holder || l.info.name, l.info.account ? String(l.info.account) : "MISSING", l.info.ifsc ?? "MISSING", Number(l.net_pay).toFixed(2), `Salary ${month}`, l.info.code, l.info.email]);
   return csv(rows);
 }
 
 /** EPFO ECR 2.0 text file (upload in the employer portal): one line per member, fields joined by #~#. */
 export function ecrText(lines: Line[]) {
   return lines.filter((l) => Number(l.pf_wage) > 0).map((l) => {
-    const epf = amt(l, "deductions", "PF"), eps = amt(l, "employer", "EPS");
+    const pf12 = amt(l, "deductions", "PF"), epf = pf12 + amt(l, "deductions", "VPF"), eps = amt(l, "employer", "EPS");
     const epsWage = Math.round(Number(l.info.eps_wage ?? 0));
     // UAN, name, gross wages, EPF wages, EPS wages, EDLI wages, EPF (employee), EPS (employer), EPF-EPS difference (employer), NCP days, refund of advances
     return [l.info.uan ?? "", (l.info.name ?? "").toUpperCase(), Math.round(Number(l.gross)), Math.round(Number(l.pf_wage)), epsWage, epsWage,
-      epf, eps, Math.max(0, epf - eps), Math.round(Number(l.lop_days)), 0].join("#~#");
+      epf, eps, Math.max(0, pf12 - eps), Math.round(Number(l.lop_days)), 0].join("#~#");
   }).join("\n") + "\n";
 }
 

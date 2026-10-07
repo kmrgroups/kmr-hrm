@@ -97,7 +97,9 @@ export async function recomputeAttendance(
         for (const d of dateRange(l.from_date, l.to_date)) {
           const nonWorking = offs.includes(weekday(d)) || !!holidayFor(emp.plant_id, d);
           if (nonWorking && !lt.count_non_working) continue;
-          leaveOn.set(d, { code: lt.code, fraction: l.half_day === "none" ? 1 : 0.5, paid: lt.paid });
+          const prev = leaveOn.get(d);   // a first-half and a second-half leave on the same day make one full day
+          const frac = Math.min(1, (prev?.fraction ?? 0) + (l.half_day === "none" ? 1 : 0.5));
+          leaveOn.set(d, { code: prev?.code ?? lt.code, fraction: (frac >= 1 ? 1 : 0.5) as 1 | 0.5, paid: prev ? prev.paid && lt.paid : lt.paid });
         }
       }
 

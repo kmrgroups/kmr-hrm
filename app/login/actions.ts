@@ -19,7 +19,7 @@ export interface LoginState {
 
 function safeNext(next: FormDataEntryValue | null): string | null {
   const n = typeof next === "string" ? next : "";
-  return n.startsWith("/") && !n.startsWith("//") ? n : null;
+  return /^\/(app|me|account|help)(\/|$|\?)/.test(n) ? n : null;
 }
 
 /**

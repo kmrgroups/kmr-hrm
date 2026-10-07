@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, hasRole } from "@/lib/auth";
+import { assertUser, hasRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/attendance/service";
 import { isMonth } from "@/lib/attendance/time";
@@ -15,8 +15,9 @@ export const maxDuration = 60;
 //                            mine (the signed-in employee's own payslip, finalised months only)
 export async function GET(req: Request, ctx: { params: Promise<{ month: string; kind: string }> }) {
   const { month, kind } = await ctx.params;
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
+  let session;
+  try { session = await assertUser("hrm.payroll-statutory-reports"); }
+  catch (e) { const m = (e as Error).message; return NextResponse.json({ error: m }, { status: /sign in/i.test(m) ? 401 : 403 }); }
   if (!isMonth(month)) return NextResponse.json({ error: "Bad month." }, { status: 400 });
   const supabase = await createClient();
   const hr = hasRole(session.user, ["hr_manager", "payroll"]);

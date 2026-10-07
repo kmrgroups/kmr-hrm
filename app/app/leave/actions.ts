@@ -56,6 +56,7 @@ export async function adjustBalance(_: ActionState, form: FormData): Promise<Act
     const db = createAdminClient();
     const { data: emp } = await db.from("employees").select("id").eq("id", d.employee_id).eq("tenant_id", tenant.id).single();
     if (!emp) return { error: "Employee not found." };
+    { const { data: lt } = await db.from("leave_types").select("id").eq("id", d.leave_type_id).eq("tenant_id", tenant.id).maybeSingle(); if (!lt) return { error: "Leave type not found." }; }
     const { error } = await db.from("leave_ledger").insert({ tenant_id: tenant.id, employee_id: d.employee_id, leave_type_id: d.leave_type_id, leave_year: year,
       kind: d.kind, days: d.days, note: d.note, created_by: user.id, period: d.kind === "opening" ? `opening-${year}` : null });
     if (error) return { error: /duplicate/.test(error.message) ? "An opening balance is already set for this person and leave type. Use an adjustment instead." : error.message };

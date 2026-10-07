@@ -1,7 +1,7 @@
 "use server";
 // Safety — the employee's side: report a near miss / unsafe act / unsafe condition, and finish the actions given to him.
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { assertUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { setFlash } from "@/lib/flash";
@@ -16,7 +16,7 @@ const str = (f: FormData, k: string, max = 500) => String(f.get(k) ?? "").trim()
 
 export async function reportSafety(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await requireSession();
+    const s = await assertUser("hrm.skill-matrix-training-safety");
     if (!s.user.employee_id) return { error: "This is for employees." };
     const kind = str(f, "kind", 30), description = str(f, "description", 3000), area = str(f, "area", 160);
     if (!EMPLOYEE_KINDS.includes(kind)) return { error: "Choose what you saw." };
@@ -37,7 +37,7 @@ export async function reportSafety(_: ActionState, f: FormData): Promise<ActionS
 
 export async function myActionDone(_: ActionState, f: FormData): Promise<ActionState> {
   try {
-    const s = await requireSession();
+    const s = await assertUser("hrm.skill-matrix-training-safety");
     if (!s.user.employee_id) return { error: "This is for employees." };
     const id = String(f.get("id") ?? "");
     if (!/^[0-9a-f-]{36}$/.test(id)) return { error: "Not found." };

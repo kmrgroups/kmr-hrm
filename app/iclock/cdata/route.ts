@@ -32,6 +32,7 @@ export async function POST(req: Request) {
   }
   // attendance is an optional feature: without it the device keeps its logs (and retries) until the company adds it
   const lic = await licenceFor(device.tenant_id);
+  if (!lic.ok) return text("ERROR: subscription not active", 403);
   if (!hasFeature(lic.features, "hrm.attendance-shifts-leave")) return text("ERROR: attendance not in plan", 403);
   const rows = parseAdmsAttlog(body);
   try {

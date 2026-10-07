@@ -75,6 +75,18 @@ export async function assertRole(roles: Role[], feature?: string): Promise<Sessi
   return s;
 }
 
+/** For actions open to every signed-in person (employee self-service): signed in, company licence valid, and the feature (if any) is in the company's plan. */
+export async function assertUser(feature?: string): Promise<Session> {
+  const s = await getSession();
+  if (!s) throw new Error("Please sign in again.");
+  if (s.user.role !== "platform_admin") {
+    const l = await licenceFor(s.tenant.id);
+    if (!l.ok) throw new Error(`${l.message} Please contact KMR Group of Companies.`);
+    if (feature && !hasFeature(l.features, feature)) throw new Error(`${FEATURE_NAME[feature] || "This feature"} is not part of your company's HRM subscription. Please contact KMR Group of Companies — www.kmr-groups.com/contact.`);
+  }
+  return s;
+}
+
 /** Where a user lands after signing in */
 export function homeFor(user: AppUser): string {
   if (user.must_change_password) return "/account?first=1";

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { BASE_PATH } from "@/lib/base-path";
@@ -28,7 +29,8 @@ export const maxDuration = 60;
 //  • safety: one e-mail to the safety officer — overdue actions, reports not looked at, PPE / medical due
 //  • engagement: scheduled announcements go out, surveys open / close on their dates, reminders before a survey closes
 export async function GET(req: Request) {
-  if (!env.cronSecret || req.headers.get("authorization") !== `Bearer ${env.cronSecret}`) {
+  const given = Buffer.from(req.headers.get("authorization") ?? ""), want = Buffer.from(`Bearer ${env.cronSecret}`);
+  if (!env.cronSecret || given.length !== want.length || !timingSafeEqual(given, want)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const db = createAdminClient();

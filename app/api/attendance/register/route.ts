@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession, hasRole, HR_ROLES } from "@/lib/auth";
+import { assertUser, hasRole, HR_ROLES } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { cellCode, loadRegister } from "@/lib/attendance/register";
 import { isMonth } from "@/lib/attendance/time";
@@ -7,8 +7,10 @@ import { fmtDays } from "@/lib/leave/rules";
 
 // Monthly register as CSV (opens in Excel). Row-level security limits managers to their team.
 export async function GET(req: Request) {
-  const session = await getSession();
-  if (!session || !hasRole(session.user, [...HR_ROLES, "manager", "payroll"])) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  let session;
+  try { session = await assertUser("hrm.attendance-shifts-leave"); }
+  catch (e) { const m = (e as Error).message; return NextResponse.json({ error: m }, { status: /sign in/i.test(m) ? 401 : 403 }); }
+  if (!hasRole(session.user, [...HR_ROLES, "manager", "payroll"])) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? "";
   if (!isMonth(month)) return NextResponse.json({ error: "month=YYYY-MM required" }, { status: 400 });

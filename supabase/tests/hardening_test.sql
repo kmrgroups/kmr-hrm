@@ -63,4 +63,28 @@ do $$ declare n int; begin
   raise notice 'ok  manager incident scope';
 end $$;
 reset role;
+-- 6. organisation chart: issued revisions are frozen, boxes stay in their company, backup restores them
+insert into hrm.org_nodes(id, tenant_id, title, kind) values ('a1000000-0000-0000-0000-000000000001','31111111-1111-1111-1111-111111111111','Plant Head','person') on conflict do nothing;
+insert into hrm.org_chart_issues(id, tenant_id, rev_no, issued_on, change_note, prepared_by, approved_by, snapshot) values
+  ('a2000000-0000-0000-0000-000000000001','31111111-1111-1111-1111-111111111111',0,current_date,'First','HR','MD','{"items":[]}') on conflict do nothing;
+do $$ declare ok boolean := false; begin
+  begin update hrm.org_chart_issues set change_note='edited' where id='a2000000-0000-0000-0000-000000000001'; exception when others then ok := true; end;
+  if not ok then raise exception 'FAIL: issued revision edited'; end if;
+  ok := false;
+  begin delete from hrm.org_chart_issues where id='a2000000-0000-0000-0000-000000000001'; exception when others then ok := true; end;
+  if not ok then raise exception 'FAIL: issued revision deleted'; end if;
+  ok := false;
+  begin insert into hrm.org_nodes(tenant_id, title, kind, parent_node_id) values ('32222222-2222-2222-2222-222222222222','Spy','person','a1000000-0000-0000-0000-000000000001'); exception when others then ok := true; end;
+  if not ok then raise exception 'FAIL: box hung under another company'' box'; end if;
+  raise notice 'ok  org chart guards';
+end $$;
+do $$ declare b jsonb; n int; begin
+  b := hrm.company_export_full('31111111-1111-1111-1111-111111111111');
+  perform hrm.company_import_safe('31111111-1111-1111-1111-111111111111', b);
+  select count(*) into n from hrm.org_nodes where id='a1000000-0000-0000-0000-000000000001';
+  if n <> 1 then raise exception 'FAIL: org box lost in restore'; end if;
+  select count(*) into n from hrm.org_chart_issues where id='a2000000-0000-0000-0000-000000000001';
+  if n <> 1 then raise exception 'FAIL: org revision lost in restore'; end if;
+  raise notice 'ok  org chart backup round trip';
+end $$;
 select 'ALL_HARDENING_TESTS_PASSED';

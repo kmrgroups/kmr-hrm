@@ -31,13 +31,14 @@ export async function AppShell({ session, active, children }: { session: Session
     { href: "/app/engage", label: "Engagement", icon: "heart", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/safety", label: "Safety", icon: "hardhat", show: hr || hasRole(user, ["manager"]) },
     { href: "/app/compliance", label: "Policies & compliance", icon: "file", show: hr || hasRole(user, ["payroll"]) },
+    { href: "/app/org-chart", label: "Organisation chart", icon: "users", show: hr },
     { href: "/app/onboarding", label: "Onboarding", icon: "inbox", show: hr },
     { href: "/app/id-cards", label: "ID cards", icon: "card", show: hr },
     { href: "/app/notifications", label: "Messages sent", icon: "bell", show: hr },
   ];
   const settings: NavItem[] = [
     { href: "/app/settings", label: platform ? "HR settings" : "Company & branding", icon: "building", show: admin },
-    { href: "/app/settings/masters", label: "Plants & departments", icon: "layers", show: hr },
+    { href: "/app/settings/masters", label: "Plants, departments & positions", icon: "layers", show: hr },
     { href: "/app/settings/attendance", label: "Attendance setup", icon: "clock", show: hr },
     { href: "/app/settings/leave", label: "Leave policy", icon: "calendar", show: hr },
     { href: "/app/settings/data", label: "Data & backups", icon: "download", show: hasRole(user, ["hr_manager"]) },

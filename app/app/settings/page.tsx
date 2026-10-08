@@ -27,6 +27,7 @@ export default async function CompanySettings() {
           <div className="card">
             <h2>HR codes</h2>
             <p className="muted" style={{ marginTop: 0 }}>Company name, address, contact details and logo are managed once for all your KMR apps in <b>KMR Apps › Administration</b>.</p>
+            {logo ? <img src={logo} alt="" style={{ maxHeight: 60, maxWidth: 220, border: "1px solid var(--border)", borderRadius: 6, padding: 6, background: "#fff", marginBottom: 10 }} /> : <div className="alert warn">No company logo yet, so the logo and browser icon are blank. Upload it in <b>KMR Apps › Administration › Customers › your company › Upload logo</b>; it appears here automatically.</div>}
             <div className="formgrid">
             <input type="hidden" name="name" value={t.name} /><input type="hidden" name="legal_name" value={t.legal_name ?? ""} />
             <input type="hidden" name="address" value={t.address ?? ""} /><input type="hidden" name="phone" value={t.phone ?? ""} />

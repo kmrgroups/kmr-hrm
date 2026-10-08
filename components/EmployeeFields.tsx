@@ -1,3 +1,4 @@
+import { p } from "@/lib/base-path";
 import type { Masters } from "@/lib/masters";
 
 interface Values {
@@ -37,6 +38,10 @@ export function EmployeeFields({ masters, v = {}, excludeId }: { masters: Master
       <Select name="position_id" label="Position (for R&R, competency mapping and KPIs)" options={masters.positions} value={v.position_id} placeholder="Select position" />
       <Select name="plant_id" label="Plant / location" options={masters.plants} value={v.plant_id} placeholder="Select plant" />
       <Select name="reporting_manager_id" label="Reporting manager" options={masters.managers.filter((m) => m.id !== excludeId)} value={v.reporting_manager_id} placeholder="Select manager" />
+      <p className="help" style={{ gridColumn: "1 / -1", margin: 0 }}>
+        Position, designation, department or plant missing from the list? <a href={p("/app/settings/masters")} target="_blank" rel="noreferrer">Add it here</a> (opens in a new tab), then reload this page.
+        The reporting manager you choose builds the <a href={p("/app/org-chart")} target="_blank" rel="noreferrer">organisation chart</a> automatically.
+      </p>
       <label className="field">Employment type
         <select name="employment_type" defaultValue={v.employment_type ?? "permanent"}>
           {EMPLOYMENT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

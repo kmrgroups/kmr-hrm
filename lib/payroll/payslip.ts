@@ -17,9 +17,22 @@ function hex(c: string | null | undefined) {
 const GREY = rgb(0.42, 0.45, 0.5), INK = rgb(0.1, 0.12, 0.16), LINE = rgb(0.86, 0.87, 0.9);
 
 export async function companyLogo(tenant: Tenant): Promise<{ bytes: Uint8Array; png: boolean } | null> {
-  if (!tenant.logo_path || !/\.(png|jpe?g)$/i.test(tenant.logo_path)) return null;
-  const { data } = await createAdminClient().storage.from(BRANDING_BUCKET).download(tenant.logo_path);
-  return data ? { bytes: new Uint8Array(await data.arrayBuffer()), png: /\.png$/i.test(tenant.logo_path) } : null;
+  const lp = tenant.logo_path;
+  if (!lp) return null;
+  // a logo set once in KMR Apps › Administration is a web address (public storage of the platform); one uploaded in the HRM is a file in the branding bucket
+  if (/^https?:\/\//i.test(lp)) {
+    try {
+      const res = await fetch(lp, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return null;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const png = bytes[0] === 0x89 && bytes[1] === 0x50;             // PNG signature; JPEG starts FF D8. Other types (SVG, WebP) cannot go into the PDF.
+      const jpg = bytes[0] === 0xff && bytes[1] === 0xd8;
+      return png || jpg ? { bytes, png } : null;
+    } catch { return null; }
+  }
+  if (!/\.(png|jpe?g)$/i.test(lp)) return null;
+  const { data } = await createAdminClient().storage.from(BRANDING_BUCKET).download(lp);
+  return data ? { bytes: new Uint8Array(await data.arrayBuffer()), png: /\.png$/i.test(lp) } : null;
 }
 
 function text(p: PDFPage, f: PDFFont, s: unknown, x: number, y: number, size = 9, color = INK) { p.drawText(safe(s), { x, y, size, font: f, color }); }

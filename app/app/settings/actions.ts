@@ -121,6 +121,94 @@ export async function toggleMaster(form: FormData) {
   revalidatePath("/app/settings/masters");
 }
 
+const USED_BY: Record<string, [string, string][]> = {
+  plants: [["employees", "plant_id"], ["attendance_devices", "plant_id"], ["holidays", "plant_id"], ["incidents", "plant_id"], ["offers", "plant_id"], ["operations", "plant_id"], ["requisitions", "plant_id"], ["announcements", "plant_id"], ["documents", "plant_id"], ["surveys", "plant_id"]],
+  departments: [["employees", "department_id"], ["positions", "department_id"], ["org_nodes", "department_id"], ["requisitions", "department_id"], ["offers", "department_id"], ["incidents", "department_id"], ["kpis", "department_id"], ["rr_roles", "department_id"], ["announcements", "department_id"], ["documents", "department_id"], ["surveys", "department_id"]],
+  designations: [["employees", "designation_id"], ["job_descriptions", "designation_id"], ["kpis", "designation_id"], ["offers", "designation_id"], ["ojt_templates", "designation_id"], ["requisitions", "designation_id"], ["role_competencies", "designation_id"], ["rr_roles", "designation_id"]],
+  positions: [["employees", "position_id"], ["job_descriptions", "position_id"], ["kpis", "position_id"], ["requisitions", "position_id"], ["role_competencies", "position_id"], ["rr_roles", "position_id"]],
+};
+const LABEL: Record<string, string> = { plants: "plant", departments: "department", designations: "designation", positions: "position" };
+async function inUse(table: keyof typeof USED_BY, id: string): Promise<boolean> {
+  const supabase = await createClient();
+  for (const [t, col] of USED_BY[table]!) {
+    const { count } = await supabase.from(t).select("id", { count: "exact", head: true }).eq(col, id);
+    if (count) return true;
+  }
+  return false;
+}
+const isUuid = (v: string) => /^[0-9a-f-]{36}$/.test(v);
+
+/** Edit the name / code / grade etc. of a plant, department or designation */
+export async function updateMaster(_: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(HR_ROLES);
+    const table = MASTER_TABLES[String(form.get("table")) as keyof typeof MASTER_TABLES];
+    const id = String(form.get("id") || "");
+    if (!table || !isUuid(id)) return { error: "Unknown item" };
+    const name = String(form.get("name") || "").trim().slice(0, 100);
+    if (name.length < 2) return { error: "Name is required" };
+    const row: Record<string, unknown> = { name };
+    const code = String(form.get("code") || "").trim().toUpperCase();
+    if (table === "plants") {
+      if (!/^[A-Z0-9]{1,6}$/.test(code)) return { error: "Plant code: 1–6 letters or digits" };
+      row.code = code; row.state = String(form.get("state") || "").trim() || null; row.address = String(form.get("address") || "").trim() || null;
+    } else if (table === "departments") row.code = code || null;
+    else row.grade = String(form.get("grade") || "").trim() || null;
+    const supabase = await createClient();
+    const { data, error } = await supabase.from(table).update(row).eq("id", id).select("id").maybeSingle();
+    if (error) return { error: /duplicate/.test(error.message) ? `${name} already exists.` : error.message };
+    if (!data) return { error: "Item not found." };
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "master.changed", entity: table, entityId: id, data: { name } });
+    revalidatePath("/app/settings/masters");
+    return { ok: `${name} saved.` };
+  } catch (e) { return { error: (e as Error).message }; }
+}
+
+/** Delete only when nothing uses it; otherwise tell the user to Hide it instead */
+export async function deleteMaster(_: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(HR_ROLES);
+    const key = String(form.get("table"));
+    const id = String(form.get("id") || "");
+    const table = key === "positions" ? "positions" : MASTER_TABLES[key as keyof typeof MASTER_TABLES];
+    if (!table || !isUuid(id)) return { error: "Unknown item" };
+    if (await inUse(table, id)) return { error: `This ${LABEL[table]} is used in employee or other records, so it cannot be deleted. Use Hide instead - it stays on old records and disappears from the dropdowns.` };
+    const supabase = await createClient();
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) return { error: error.message };
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "master.deleted", entity: table, entityId: id, data: {} });
+    revalidatePath("/app/settings/masters");
+    return { ok: "Deleted." };
+  } catch (e) { return { error: (e as Error).message }; }
+}
+
+/** Positions (Production Head, Calibration Incharge ...) - the list behind the Position dropdown on the employee record */
+export async function savePosition(_: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(HR_ROLES);
+    const id = String(form.get("id") || "");
+    const title = String(form.get("title") || "").trim().slice(0, 120);
+    if (title.length < 2) return { error: "Enter the position name." };
+    const dept = String(form.get("department_id") || "");
+    const row = { title, role: String(form.get("role") || "").trim().slice(0, 160) || null, department_id: isUuid(dept) ? dept : null };
+    const supabase = await createClient();
+    const q = id && isUuid(id) ? supabase.from("positions").update(row).eq("id", id).select("id").maybeSingle() : supabase.from("positions").insert({ ...row, tenant_id: tenant.id, created_by: user.id }).select("id").single();
+    const { data, error } = await q;
+    if (error) return { error: /duplicate/.test(error.message) ? `${title} already exists for that department.` : error.message };
+    if (!data) return { error: "Position not found." };
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: id ? "master.changed" : "master.added", entity: "positions", entityId: data.id, data: { title } });
+    revalidatePath("/app/settings/masters"); revalidatePath("/app/employees");
+    return { ok: id ? `${title} saved.` : `${title} added. It now appears in the Position dropdown.` };
+  } catch (e) { return { error: (e as Error).message }; }
+}
+
+export async function togglePosition(form: FormData) {
+  await assertRole(HR_ROLES);
+  const supabase = await createClient();
+  await supabase.from("positions").update({ active: form.get("active") === "1" }).eq("id", String(form.get("id")));
+  revalidatePath("/app/settings/masters");
+}
+
 // ---------------------------------------------------------------- users
 const STAFF_ROLES: Role[] = ["company_admin", "hr_manager", "hr_executive", "payroll", "manager", "interviewer"];
 

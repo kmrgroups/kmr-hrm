@@ -7,7 +7,7 @@ export const BACKUP_BUCKET = "hrm-backups";
 export const KEEP_DAYS = 7;
 
 export async function exportCompany(tenantId: string): Promise<Record<string, unknown>> {
-  const { data, error } = await createAdminClient().rpc("company_export", { p_tenant: tenantId });
+  const { data, error } = await createAdminClient().rpc("company_export_full", { p_tenant: tenantId });
   if (error) throw new Error(`Export failed: ${error.message}`);
   return data as Record<string, unknown>;
 }

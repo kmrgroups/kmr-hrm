@@ -51,6 +51,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <PoweredBy />
         <ServiceWorker />
         <Script src={p("/kmr-text.js")} strategy="afterInteractive" />
+        <Script src={p("/kmr-select.js")} strategy="afterInteractive" />
       </body>
     </html>
   );

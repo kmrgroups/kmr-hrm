@@ -7,6 +7,7 @@ import { logoUrl } from "@/lib/tenant";
 import { PoweredBy } from "@/components/PoweredBy";
 import { NavProgress } from "@/components/NavProgress";
 import { Suspense } from "react";
+import Script from "next/script";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await getTenant().catch(() => null);
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {children}
         <PoweredBy />
         <ServiceWorker />
+        <Script src={p("/kmr-text.js")} strategy="afterInteractive" />
       </body>
     </html>
   );

@@ -95,6 +95,7 @@ export async function AppShell({ session, active, children }: { session: Session
         </nav>
         <div className="who">
           <div style={{ fontWeight: 600 }}>{user.full_name}</div>
+          <div style={{ opacity: 0.85, fontSize: 12, wordBreak: "break-all" }} title="Login id">{user.email}</div>
           <div style={{ opacity: 0.75, marginBottom: 6 }}>{ROLE_LABELS[user.role]}</div>
           <form action={signOut}><button>Sign out</button></form>
         </div>

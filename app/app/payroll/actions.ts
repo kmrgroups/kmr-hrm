@@ -5,7 +5,8 @@ import { assertRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
-import { isDate, isMonth, fmtMonth } from "@/lib/attendance/time";
+import { isDate, isMonth, fmtMonth, monthBounds } from "@/lib/attendance/time";
+import { recomputeAttendance } from "@/lib/attendance/service";
 import { notify } from "@/lib/notify";
 import { currentOrigin } from "@/lib/tenant";
 import { p } from "@/lib/base-path";
@@ -39,7 +40,11 @@ export async function startRun(_: ActionState, form: FormData): Promise<ActionSt
       if (error) return { error: error.message };
       run = data;
     }
-    if (run.status === "draft") await computeRun(supabase, tenant.id, run);
+    if (run.status === "draft") {
+      const { from, to } = monthBounds(month);
+      await recomputeAttendance(tenant.id, "all", from, to);   // pick up the latest biometric punches first
+      await computeRun(supabase, tenant.id, run);
+    }
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "payroll.started", entity: "payroll_runs", entityId: run.id, data: { month } });
   } catch (e) { return fail(e); }
   redirect(`/app/payroll/${month}`);
@@ -318,5 +323,55 @@ export async function saveComponent(_: ActionState, form: FormData): Promise<Act
     await logAudit({ tenantId: tenant.id, actorId: user.id, action: "payroll.component_saved", entity: "pay_components", entityId: code });
     revalidatePath("/app/settings/payroll");
     return { ok: `${name} saved. New and revised salaries use it; existing salaries keep their amounts until revised.` };
+  } catch (e) { return fail(e); }
+}
+
+// ------------------------------------------------------------------ guided flow
+/** Step 1 helper: re-reads the biometric punches and rebuilds every day of the month, then (if the month was started) works payroll out again. */
+export async function refreshAttendance(_: ActionState, form: FormData): Promise<ActionState> {
+  const month = String(form.get("month") ?? "");
+  try {
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
+    if (!isMonth(month)) return { error: "Choose a month." };
+    const { from, to } = monthBounds(month);
+    const n = await recomputeAttendance(tenant.id, "all", from, to);
+    const supabase = await createClient();
+    const { data: run } = await supabase.from("payroll_runs").select("id,month,status").eq("month", month).maybeSingle();
+    if (run && run.status === "draft") await computeRun(supabase, tenant.id, run);
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "payroll.attendance_refreshed", entity: "attendance_days", entityId: null, data: { month, days: n } });
+    revalidatePath("/app/payroll"); revalidatePath(`/app/payroll/${month}`);
+    return { ok: `Biometric punches re-read: ${n} day record(s) rebuilt for ${fmtMonth(month)}${run?.status === "draft" ? " and payroll worked out again" : ""}.` };
+  } catch (e) { return fail(e); }
+}
+
+const BONUS = "Incentive / bonus", OTHER = "Other deduction";
+/** Step 2: the yellow-cell table — incentive, other deduction, income tax and loss-of-pay for everyone, saved together. */
+export async function saveRegister(_: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    const { tenant, user } = await assertRole(ROLES, "hrm.payroll-statutory-reports");
+    const { supabase, run } = await runFor(String(form.get("month")));
+    if (run.status !== "draft") return { error: "This month is finalised. Reopen it first to make changes." };
+    const { data: lines } = await supabase.from("payroll_lines").select("employee_id,adjustments,lop_override,tds_override").eq("run_id", run.id);
+    let changed = 0;
+    for (const l of lines ?? []) {
+      const id = l.employee_id as string;
+      if (!form.has(`bonus_${id}`)) continue;                       // row not on the page
+      const raw = (k: string) => String(form.get(`${k}_${id}`) ?? "").trim();
+      const bonus = raw("bonus") === "" ? 0 : num(raw("bonus")), other = raw("other") === "" ? 0 : num(raw("other"));
+      const lop = raw("lop") === "" ? null : num(raw("lop")), tds = raw("tds") === "" ? null : num(raw("tds"));
+      if ([bonus, other].some((v) => Number.isNaN(v) || v < 0) || (lop != null && (Number.isNaN(lop) || lop < 0 || lop > 31)) || (tds != null && (Number.isNaN(tds) || tds < 0)))
+        return { error: "Amounts must be numbers of 0 or more; loss-of-pay days 0 to 31." };
+      const keep = ((l.adjustments as { label: string; kind: string; amount: number }[]) ?? []).filter((a) => a.label !== BONUS && a.label !== OTHER);
+      const adjustments = [...keep, ...(bonus > 0 ? [{ label: BONUS, kind: "earning", amount: bonus }] : []), ...(other > 0 ? [{ label: OTHER, kind: "deduction", amount: other }] : [])];
+      const before = JSON.stringify([l.adjustments ?? [], l.lop_override, l.tds_override]), after = JSON.stringify([adjustments, lop, tds]);
+      if (before === after) continue;
+      const { error } = await supabase.from("payroll_lines").update({ adjustments, lop_override: lop, tds_override: tds }).eq("run_id", run.id).eq("employee_id", id);
+      if (error) return { error: error.message };
+      changed++;
+    }
+    const r = await computeRun(supabase, tenant.id, run);
+    await logAudit({ tenantId: tenant.id, actorId: user.id, action: "payroll.register_saved", entity: "payroll_runs", entityId: run.id, data: { month: run.month, changed } });
+    revalidatePath(`/app/payroll/${run.month}`);
+    return { ok: `${changed ? `${changed} employee(s) updated. ` : "No changes. "}Net pay for the month: Rs. ${inr(r.totals.net)}. Next: check the figures, then finalise.` };
   } catch (e) { return fail(e); }
 }

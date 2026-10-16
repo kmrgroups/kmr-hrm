@@ -53,6 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Script src={p("/kmr-text.js")} strategy="afterInteractive" />
         <Script src={p("/kmr-select.js")} strategy="afterInteractive" />
         <Script src={p("/kmr-table.js")} strategy="afterInteractive" />
+        <Script src={p("/kmr-guide.js")} strategy="afterInteractive" />
       </body>
     </html>
   );

@@ -10,7 +10,9 @@ import { AppShell } from "@/components/AppShell";
 import { ActionForm } from "@/components/ActionForm";
 import { Empty, fmtDateTime } from "@/components/ui";
 import { PayrollTabs } from "../nav";
-import { deleteRun, emailPayslips, finalise, recalcRun, reopen, saveLine } from "../actions";
+import { PayrollSteps } from "../steps";
+import { payrollReadiness } from "@/lib/payroll/readiness";
+import { deleteRun, emailPayslips, finalise, recalcRun, refreshAttendance, reopen, saveLine, saveRegister } from "../actions";
 
 export const metadata = { title: "Payroll month" };
 
@@ -32,6 +34,11 @@ export default async function RunPage({ params, searchParams }: { params: Promis
   const q = (sp.q ?? "").toLowerCase().trim();
   const shown = lines.filter((l) => !q || `${l.info.name} ${l.info.code} ${l.info.department}`.toLowerCase().includes(q));
   const edit = sp.e ? lines.find((l) => l.employee_id === sp.e) : null;
+  const missedBy = new Map((await payrollReadiness(session.tenant.id, month)).missed.map((m) => [m.id, m.dates.length]));
+  const adj = (l: Line, label: string) => l.adjustments.find((a) => a.label === label)?.amount ?? "";
+  const autoTds = (l: Line) => l.deductions.filter((d) => d.code === "TDS").reduce((n, d) => n + d.amount, 0);
+  const byDept = new Map<string, { n: number; gross: number; net: number }>();
+  for (const l of lines) { const k = String(l.info.department ?? "No department"); const x = byDept.get(k) ?? { n: 0, gross: 0, net: 0 }; x.n++; x.gross += Number(l.gross); x.net += Number(l.net_pay); byDept.set(k, x); }
   const dl = (kind: string, label: string) => <a className="btn secondary small" href={p(`/api/payroll/${month}/${kind}`)}>{label}</a>;
 
   return (
@@ -48,6 +55,14 @@ export default async function RunPage({ params, searchParams }: { params: Promis
         </div>
       </div>
       <PayrollTabs active="runs" />
+      <PayrollSteps current={draft ? 2 : run.emailed_at ? 4 : 3} month={month} />
+      {draft ? (
+        <div className="nextstep"><div><b>Step 2 of 4 — review the month.</b> Attendance and loss of pay are already filled from the biometric punches. Type only in the <b>yellow boxes</b> (bonus, other deduction, income tax, loss-of-pay days), press <b>Save all</b>, then <b>Finalise month</b>.</div>
+          <a className="btn small" href="#register">Go to the table ↓</a></div>
+      ) : (
+        <div className="nextstep ok"><div><b>{run.emailed_at ? "Step 4 of 4 — done." : "Step 3 and 4 — month finalised."}</b> {run.emailed_at ? "Payslips are e-mailed. Download the bank, PF and ESI files below when you pay." : "Download the bank, PF and ESI files below, then e-mail the payslips."}</div>
+          <a className="btn small" href="#files">Go to the files ↓</a></div>
+      )}
       <div className="grid four">
         <Stat label="Employees" value={String(t.employees ?? 0)} hint={t.no_salary ? `${t.no_salary} without salary left out` : undefined} />
         <Stat label="Gross pay" value={`Rs. ${inr(t.gross ?? 0)}`} />
@@ -61,8 +76,8 @@ export default async function RunPage({ params, searchParams }: { params: Promis
         <Stat label="Income tax (TDS) · loans" value={`Rs. ${inr(t.tds ?? 0)} · ${inr(t.loans ?? 0)}`} />
       </div>
 
-      <div className="card">
-        <div className="spread"><h2 style={{ margin: 0 }}>Files</h2><span className="muted" style={{ fontSize: 13 }}>{draft ? "Draft figures — finalise before paying." : "Final figures."}</span></div>
+      <div className="card" id="files">
+        <div className="spread"><h2 style={{ margin: 0 }}>Pay & file</h2><span className="muted" style={{ fontSize: 13 }}>{draft ? "Draft figures — finalise before paying." : "Final figures."}</span></div>
         <div className="row" style={{ flexWrap: "wrap", gap: 8, marginTop: 10 }}>
           {dl("payslips.pdf", "All payslips (PDF)")}{dl("register.csv", "Salary register (Excel)")}{dl("bank.csv", "Bank transfer file")}
           {dl("ecr.txt", "PF ECR file (EPFO)")}{dl("esi.csv", "ESI file (ESIC)")}{dl("pt.csv", "Professional tax")}
@@ -101,23 +116,52 @@ export default async function RunPage({ params, searchParams }: { params: Promis
         </div>
       )}
 
-      <div className="card">
-        <div className="spread"><h2 style={{ margin: 0 }}>Payslips ({lines.length})</h2>
-          <form className="row" action=""><input name="q" defaultValue={sp.q ?? ""} placeholder="Search name, code, department" style={{ minWidth: 240 }} /><button className="btn secondary small">Search</button></form></div>
-        {!lines.length ? <Empty>No payslips — set salaries for your employees, then work out again.</Empty> : (
-          <div className="tablewrap" style={{ border: 0, marginTop: 10 }}><table>
-            <thead><tr><th>Employee</th><th>Department</th><th className="num">Paid days</th><th className="num">LOP</th><th className="num">Gross</th><th className="num">Deductions</th><th className="num">Net pay</th><th></th></tr></thead>
-            <tbody>{shown.map((l) => (
-              <tr key={l.employee_id} style={l.employee_id === sp.e ? { background: "var(--bg-soft, #f5f7fb)" } : undefined}>
-                <td><b>{l.info.name}</b> <span className="muted">{l.info.code}</span>{l.info.warnings ? <span className="badge danger" style={{ marginLeft: 6 }} title={String(l.info.warnings)}>check</span> : null}
-                  {l.adjustments.length || l.lop_override != null || l.tds_override != null ? <span className="badge info" style={{ marginLeft: 6 }}>edited</span> : null}</td>
-                <td className="muted">{l.info.department}</td>
-                <td className="num">{l.paid_days}</td><td className="num">{Number(l.lop_days) ? l.lop_days : ""}</td>
-                <td className="num">{inr(l.gross)}</td><td className="num">{inr(l.total_deductions)}</td><td className="num"><b>{inr(l.net_pay)}</b></td>
-                <td style={{ textAlign: "right" }}><a className="btn secondary small" href={`?e=${l.employee_id}${sp.q ? `&q=${encodeURIComponent(sp.q)}` : ""}#edit`}>{draft ? "Open / edit" : "Open"}</a></td>
-              </tr>))}</tbody>
-          </table></div>)}
+      <div className="card" id="register">
+        <div className="spread" style={{ flexWrap: "wrap", gap: 10 }}><h2 style={{ margin: 0 }}>Payroll register ({lines.length})</h2>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <form className="row" action=""><input name="q" defaultValue={sp.q ?? ""} placeholder="Search name, code, department" style={{ minWidth: 220 }} /><button className="btn secondary small">Search</button></form>
+            {draft && <ActionForm action={refreshAttendance} submitLabel="Re-read biometric" variant="secondary" hidden={{ month }} pendingLabel="Reading…" />}
+          </div></div>
+        <p className="muted" style={{ margin: "6px 0 10px", fontSize: 13 }}>{draft ? "Yellow boxes are yours to fill; everything else is worked out. Empty loss-of-pay and tax boxes use the attendance and the salary." : "Finalised — reopen the month to change anything."} Paid days and loss of pay come from the biometric attendance.</p>
+        {!lines.length ? <Empty>No payslips — set salaries for your employees, then work out again.</Empty> : (() => {
+          const table = (
+            <div className="tablewrap" style={{ border: 0 }}><table className="regtable">
+              <thead><tr><th>Employee</th><th className="num" title="From the biometric attendance">Paid days</th><th className="num">LOP</th><th className="num">Gross</th>
+                <th className="yel num">Incentive / bonus ✎</th><th className="yel num">Other deduction ✎</th><th className="yel num">Income tax ✎</th><th className="yel num">LOP days ✎</th>
+                <th className="num">Deductions</th><th className="num">Net pay</th><th></th></tr></thead>
+              <tbody>{shown.map((l) => { const id = l.employee_id, mp = missedBy.get(id); return (
+                <tr key={id} style={id === sp.e ? { background: "var(--bg-soft, #f5f7fb)" } : undefined}>
+                  <td><b>{l.info.name}</b> <span className="muted">{l.info.code}</span>{l.info.warnings ? <span className="badge danger" style={{ marginLeft: 6 }} title={String(l.info.warnings)}>check</span> : null}
+                    {mp ? <a className="badge warn" style={{ marginLeft: 6 }} href={p(`/app/attendance/employee/${id}?month=${month}`)} title="Days with a single punch — fix the punch, then re-read biometric">{mp} missed punch</a> : null}
+                    <div className="muted" style={{ fontSize: 12 }}>{l.info.department}</div></td>
+                  <td className="num">{l.paid_days}</td><td className="num">{Number(l.lop_days) ? l.lop_days : ""}</td><td className="num">{inr(l.gross)}</td>
+                  {draft ? (<>
+                    <td className="yel"><input name={`bonus_${id}`} inputMode="decimal" defaultValue={adj(l, "Incentive / bonus")} placeholder="0" aria-label={`Incentive for ${l.info.name}`} /></td>
+                    <td className="yel"><input name={`other_${id}`} inputMode="decimal" defaultValue={adj(l, "Other deduction")} placeholder="0" aria-label={`Other deduction for ${l.info.name}`} /></td>
+                    <td className="yel"><input name={`tds_${id}`} inputMode="decimal" defaultValue={l.tds_override ?? ""} placeholder={autoTds(l) ? String(autoTds(l)) : "0"} aria-label={`Income tax for ${l.info.name}`} /></td>
+                    <td className="yel"><input name={`lop_${id}`} inputMode="decimal" defaultValue={l.lop_override ?? ""} placeholder={String(l.lop_days)} aria-label={`Loss-of-pay days for ${l.info.name}`} /></td>
+                  </>) : (<>
+                    <td className="num">{adj(l, "Incentive / bonus") !== "" ? inr(Number(adj(l, "Incentive / bonus"))) : ""}</td><td className="num">{adj(l, "Other deduction") !== "" ? inr(Number(adj(l, "Other deduction"))) : ""}</td>
+                    <td className="num">{autoTds(l) ? inr(autoTds(l)) : ""}</td><td className="num">{l.lop_override ?? ""}</td></>)}
+                  <td className="num">{inr(l.total_deductions)}</td><td className="num"><b>{inr(l.net_pay)}</b></td>
+                  <td style={{ textAlign: "right" }}><a className="btn secondary small" href={`?e=${id}${sp.q ? `&q=${encodeURIComponent(sp.q)}` : ""}#edit`} title="Payslip detail and extra items">Details</a></td>
+                </tr>); })}</tbody>
+            </table></div>);
+          return draft ? <ActionForm action={saveRegister} submitLabel="Save all & work out" pendingLabel="Saving…" hidden={{ month }} className="stack">{table}</ActionForm> : table;
+        })()}
+        {draft && lines.length > 0 && (
+          <div className="nextstep warn" id="finalise" style={{ marginTop: 14, marginBottom: 0 }}><div><b>Happy with the figures?</b> Press <b>Save all</b> first if you typed anything, then finalise. Employees will see their payslips and loan instalments are recorded.</div>
+            <ActionForm action={finalise} submitLabel="Finalise month" hidden={{ month }} confirm={`Finalise ${fmtMonth(month)}? Employees will see their payslips and loan instalments will be recorded.`} pendingLabel="Finalising…" /></div>
+        )}
       </div>
+
+      {lines.length > 0 && (
+        <div className="card"><h2>Department-wise cost</h2>
+          <div className="tablewrap" style={{ border: 0 }}><table>
+            <thead><tr><th>Department</th><th className="num">Employees</th><th className="num">Gross</th><th className="num">Net pay</th></tr></thead>
+            <tbody>{[...byDept.entries()].sort((a, b) => b[1].gross - a[1].gross).map(([d, x]) => <tr key={d}><td>{d}</td><td className="num">{x.n}</td><td className="num">{inr(x.gross)}</td><td className="num">{inr(x.net)}</td></tr>)}</tbody>
+          </table></div></div>
+      )}
       {draft && (
         <div className="card"><h2>Delete this draft</h2><p className="muted">Removes the draft for {fmtMonth(month)} (nothing is paid or visible yet).</p>
           <ActionForm action={deleteRun} submitLabel="Delete draft" variant="danger" hidden={{ month }} confirm="Delete this draft payroll?" /></div>
